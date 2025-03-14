@@ -273,22 +273,44 @@ export default function ApiKeysPage() {
                     </div>
                   </div>
                 </div>
-                
-
                 <div>
                   <h4 className="text-xs font-medium text-gray-500 mb-2">Permissões</h4>
                   <div className="flex flex-wrap gap-2">
-                    {apiKey.permissions.map((permission: string) => (
-                      <Badge key={permission} className="bg-blue-50 text-blue-700 border-blue-100">
-                        {permission === 'spot' && 'Spot Trading'}
-                        {permission === 'margin' && 'Margin Trading'}
-                        {permission === 'futures' && 'Futures Trading'}
-                        {permission === 'withdraw' && 'Saques'}
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                      Leitura
+                    </Badge>
+                    
+                    {apiKey.permissions.includes('SPOT') && (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                        Spot Trading
                       </Badge>
-                    ))}
+                    )}
+                    
+                    {apiKey.permissions.includes('MARGIN') && (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                        Margin Trading
+                      </Badge>
+                    )}
+                    
+                    {apiKey.permissions.includes('MARGIN_LOAN') && (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                        Empréstimo de Margem
+                      </Badge>
+                    )}
+                    
+                    {apiKey.permissions.includes('TRANSFER') && (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                        Transferência
+                      </Badge>
+                    )}
+                    
+                    {apiKey.permissions.includes('WITHDRAW') && (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+                        Saques
+                      </Badge>
+                    )}
                   </div>
                 </div>
-                
                 <div className="pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-2">
                   <div className="text-xs text-gray-500 whitespace-nowrap">
                     Criada em {new Date(apiKey.createdAt).toLocaleDateString()}

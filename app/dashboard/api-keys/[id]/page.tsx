@@ -14,13 +14,15 @@ import { Label } from '@/app/components/ui/label';
 import { Switch } from '@/app/components/ui/switch';
 import { Badge } from '@/app/components/ui/badge';
 
-// Schema para validação
+// Adicione esta definição de schema:
 const apiKeyEditSchema = z.object({
   permissions: z.object({
-    spot: z.boolean().default(false),
-    margin: z.boolean().default(false),
-    futures: z.boolean().default(false),
-    withdraw: z.boolean().default(false),
+    enableReading: z.boolean().default(true),
+    enableSpotAndMarginTrading: z.boolean().default(false),
+    enableMarginLoan: z.boolean().default(false),
+    enableUniversalTransfer: z.boolean().default(false),
+    enableWithdraw: z.boolean().default(false),
+    enableSymbolPermissionList: z.boolean().default(false),
   }),
 });
 
@@ -193,98 +195,121 @@ export default function EditApiKeyPage() {
             
             <form onSubmit={handleSubmit(onSubmit)}>
               <div className="space-y-4">
-                <h3 className="text-sm font-medium">Permissões</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border rounded p-4">
+                <h3 className="text-sm font-medium">Restrições de API</h3>
+                <div className="grid grid-cols-1 gap-3 border rounded p-4">
                   <div className="flex items-center space-x-2">
                     <Controller
-                      name="permissions.spot"
+                      name="permissions.enableReading"
                       control={control}
                       render={({ field }) => (
                         <Switch 
-                          id="spot-permission" 
+                          id="enable-reading" 
                           checked={field.value} 
                           onCheckedChange={field.onChange}
+                          disabled={true} // Sempre habilitado
                         />
                       )}
                     />
-                    <Label htmlFor="spot-permission" className="cursor-pointer">Spot Trading</Label>
+                    <Label htmlFor="enable-reading" className="cursor-pointer">
+                      Habilitar Leitura
+                    </Label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Controller
-                      name="permissions.margin"
+                      name="permissions.enableSpotAndMarginTrading"
                       control={control}
                       render={({ field }) => (
                         <Switch 
-                          id="margin-permission" 
+                          id="enable-spot-margin" 
                           checked={field.value} 
                           onCheckedChange={field.onChange}
                         />
                       )}
                     />
-                    <Label htmlFor="margin-permission" className="cursor-pointer">Margin Trading</Label>
+                    <Label htmlFor="enable-spot-margin" className="cursor-pointer">
+                      Ativar Trading Spot e de Margem
+                    </Label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Controller
-                      name="permissions.futures"
+                      name="permissions.enableMarginLoan"
                       control={control}
                       render={({ field }) => (
                         <Switch 
-                          id="futures-permission" 
+                          id="enable-margin-loan" 
                           checked={field.value} 
                           onCheckedChange={field.onChange}
                         />
                       )}
                     />
-                    <Label htmlFor="futures-permission" className="cursor-pointer">Futures Trading</Label>
+                    <Label htmlFor="enable-margin-loan" className="cursor-pointer">
+                      Habilitar Empréstimo, Reembolso e Transferência de Margem
+                    </Label>
                   </div>
                   
                   <div className="flex items-center space-x-2">
                     <Controller
-                      name="permissions.withdraw"
+                      name="permissions.enableUniversalTransfer"
                       control={control}
                       render={({ field }) => (
                         <Switch 
-                          id="withdraw-permission" 
+                          id="enable-universal-transfer" 
                           checked={field.value} 
                           onCheckedChange={field.onChange}
                         />
                       )}
                     />
-                    <Label htmlFor="withdraw-permission" className="cursor-pointer">Saques</Label>
+                    <Label htmlFor="enable-universal-transfer" className="cursor-pointer">
+                      Permitir Transferência Universal
+                    </Label>
                   </div>
-                </div>
-                
-                <div className="bg-yellow-50 p-4 rounded-md flex items-start">
-                  <div className="text-yellow-500 mr-3 mt-0.5">⚠️</div>
-                  <div>
-                    <h4 className="text-sm font-medium text-yellow-800 mb-1">Atenção</h4>
-                    <p className="text-sm text-yellow-700">
-                      A alteração de permissões afeta apenas o controle local. Para restringir totalmente o acesso da chave API,
-                      você deve configurar as permissões diretamente na interface da exchange.
-                    </p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Controller
+                      name="permissions.enableWithdraw"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch 
+                          id="enable-withdraw" 
+                          checked={field.value} 
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <Label htmlFor="enable-withdraw" className="cursor-pointer">
+                      Habilitar Saques
+                    </Label>
                   </div>
-                </div>
-                
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => router.push('/dashboard/api-keys')}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isSaving}
-                  >
-                    {isSaving && (
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Controller
+                      name="permissions.enableSymbolPermissionList"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch 
+                          id="enable-symbol-permission" 
+                          checked={field.value} 
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <Label htmlFor="enable-symbol-permission" className="cursor-pointer">
+                      Ativar Lista de Permissões do Símbolo
+                    </Label>
+                    {field.value && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="ml-2"
+                        type="button"
+                        onClick={() => { /* Abrir modal para configurar símbolos permitidos */ }}
+                      >
+                        Editar
+                      </Button>
                     )}
-                    <Save className="mr-2 h-4 w-4" />
-                    Salvar Permissões
-                  </Button>
+                  </div>
                 </div>
               </div>
             </form>

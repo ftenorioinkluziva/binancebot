@@ -123,6 +123,7 @@ export async function DELETE(
 }
 
 // Endpoint para validar a chave API
+
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }
@@ -142,10 +143,9 @@ export async function POST(
     }
     
     const userId = session.user.id;
-    //const apiKeyId = params.id;
     
-    // Validar a chave API
-    const validationResult = await ApiKeyService.validateApiKey(apiKeyId, userId);
+    // Validar a chave API - usar 'id' em vez de 'apiKeyId'
+    const validationResult = await ApiKeyService.validateApiKey(id, userId);
     
     if (!validationResult.valid) {
       return NextResponse.json({ 
