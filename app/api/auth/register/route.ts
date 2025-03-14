@@ -1,8 +1,9 @@
 // app/api/auth/register/route.ts
 import { NextResponse } from 'next/server';
 import { hash } from 'bcrypt';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { z } from 'zod';
+
 
 const userSchema = z.object({
   name: z.string().min(2),

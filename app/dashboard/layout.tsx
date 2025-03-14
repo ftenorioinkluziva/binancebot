@@ -1,12 +1,11 @@
 // app/dashboard/layout.tsx
 import React from 'react';
-import Link from 'next/link';
+//import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-
-import Sidebar from '@/components/dashboard/sidebar';
-import Header from '@/components/dashboard/header';
+import Sidebar from '@/app/components/dashboard/sidebar';
+import Header from '@/app/components/dashboard/header';
 
 export default async function DashboardLayout({
   children,

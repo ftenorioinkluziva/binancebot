@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -59,10 +59,6 @@ type DCAStrategy = z.infer<typeof dcaSchema>;
 type BollingerStrategy = z.infer<typeof bollingerSchema>;
 type MAStrategy = z.infer<typeof maSchema>;
 
-// Função para verificar se uma estratégia é do tipo DCA
-const isDCAStrategy = (data: any): data is DCAStrategy => {
-  return data && data.type === 'DCA';
-};
 
 export default function NewStrategyPage() {
   const router = useRouter();
@@ -154,14 +150,48 @@ export default function NewStrategyPage() {
   const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
     setSelectedType(value);
     
-    // Não precisamos resetar os formulários individualmente já que estamos usando formulários separados
-    // O reset é aplicado ao formulário atual que é selecionado pelo tipo
+    // Resetar o formulário com os valores padrão do novo tipo
+    if (value === 'DCA') {
+      reset({
+        type: 'DCA',
+        active: false,
+        name: '',
+        symbol: '',
+        amount: 50,
+        frequency: 'weekly',
+        dayOfWeek: 1,
+      } as z.infer<typeof dcaSchema>);
+    } else if (value === 'BollingerBands') {
+      reset({
+        type: 'BollingerBands',
+        active: false,
+        name: '',
+        symbol: '',
+        period: 20,
+        deviation: 2,
+        amount: 100,
+        buyLowerBand: true,
+        sellUpperBand: true,
+      } as z.infer<typeof bollingerSchema>);
+    } else if (value === 'MovingAverage') {
+      reset({
+        type: 'MovingAverage',
+        active: false,
+        name: '',
+        symbol: '',
+        fastPeriod: 9,
+        slowPeriod: 21,
+        signalPeriod: 9,
+        amount: 75,
+        maType: 'EMA',
+      } as z.infer<typeof maSchema>);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
-        <Button variant="ghost" size="sm" className="mr-4">
+        <Button variant="ghost" size="sm" asChild className="mr-4">
           <Link href="/dashboard/strategies">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
@@ -396,23 +426,23 @@ export default function NewStrategyPage() {
               <div className="bg-blue-50 p-4 rounded-md">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
                 <p className="text-sm text-blue-700">
-                  {isDCAStrategy(watchedValues) && (
+                  {isDCAStrategy(strategy) && (
                     <>
                       Esta estratégia irá comprar 
-                      <span className="font-medium"> {watchedValues.amount} USDT </span>
-                      de {watchedValues.symbol || '[selecione um par]'} 
-                      {watchedValues.frequency === 'daily' && ' todos os dias'}
-                      {watchedValues.frequency === 'weekly' && ` toda semana às ${
-                        watchedValues.dayOfWeek === 0 ? 'domingos' :
-                        watchedValues.dayOfWeek === 1 ? 'segundas-feiras' :
-                        watchedValues.dayOfWeek === 2 ? 'terças-feiras' :
-                        watchedValues.dayOfWeek === 3 ? 'quartas-feiras' :
-                        watchedValues.dayOfWeek === 4 ? 'quintas-feiras' :
-                        watchedValues.dayOfWeek === 5 ? 'sextas-feiras' :
+                      <span className="font-medium"> {strategy.amount} USDT </span>
+                      de {strategy.symbol || '[selecione um par]'} 
+                      {strategy.frequency === 'daily' && ' todos os dias'}
+                      {strategy.frequency === 'weekly' && ` toda semana às ${
+                        strategy.dayOfWeek === 0 ? 'domingos' :
+                        strategy.dayOfWeek === 1 ? 'segundas-feiras' :
+                        strategy.dayOfWeek === 2 ? 'terças-feiras' :
+                        strategy.dayOfWeek === 3 ? 'quartas-feiras' :
+                        strategy.dayOfWeek === 4 ? 'quintas-feiras' :
+                        strategy.dayOfWeek === 5 ? 'sextas-feiras' :
                         'sábados'
                       }`}
-                      {watchedValues.frequency === 'monthly' && ` todo mês no dia ${watchedValues.dayOfMonth || 1}`}
-                      {watchedValues.hour !== undefined && ` às ${watchedValues.hour.toString().padStart(2, '0')}:00`}.
+                      {strategy.frequency === 'monthly' && ` todo mês no dia ${strategy.dayOfMonth || 1}`}
+                      {strategy.hour !== undefined && ` às ${strategy.hour.toString().padStart(2, '0')}:00`}.
                     </>
                   )}
                 </p>
@@ -428,6 +458,7 @@ export default function NewStrategyPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Conteúdo para Bollinger Bands - sem alterações */}
+              {/* ... */}
             </CardContent>
           </Card>
         )}
@@ -439,6 +470,7 @@ export default function NewStrategyPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Conteúdo para Moving Average - sem alterações */}
+              {/* ... */}
             </CardContent>
           </Card>
         )}

@@ -3,11 +3,11 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 
-import { DashboardOverview } from '@/components/dashboard/dashboard-overview';
-import { PortfolioSummary } from '@/components/dashboard/portfolio-summary';
-import { MarketOverview } from '@/components/dashboard/market-overview';
-import { RecentTrades } from '@/components/dashboard/recent-trades';
-import { ActiveStrategies } from '@/components/dashboard/active-strategies';
+import { DashboardOverview } from '@/app/components/dashboard/dashboard-overview';    
+import { PortfolioSummary } from '@/app/components/dashboard/portfolio-summary';
+import { MarketOverview } from '@/app/components/dashboard/market-overview';
+import { RecentTrades } from '@/app/components/dashboard/recent-trades';
+import { ActiveStrategies } from '@/app/components/dashboard/active-strategies';
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);

@@ -7,9 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 
-import { AuthCard } from '@/components/ui/auth-card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { AuthCard } from '@/app/components/ui/auth-card';
+import { Input } from '@/app/components/ui/input';
+import { Button } from '@/app/components/ui/button';
 
 const resetPasswordSchema = z.object({
   email: z.string().email('Por favor, insira um email válido'),

@@ -8,10 +8,9 @@ import { z } from 'zod';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-import { AuthCard } from '@/components/ui/auth-card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { AuthCard } from '@/app/components/ui/auth-card';
+import { Input } from '@/app/components/ui/input';
+import { Button } from '@/app/components/ui/button';
 
 const loginSchema = z.object({
   email: z.string().email('Por favor, insira um email válido'),
@@ -47,6 +46,7 @@ export default function LoginPage() {
       
       router.push('/dashboard');
     } catch (err) {
+      console.error('Erro ao fazer login:', err);
       setError('Ocorreu um erro ao tentar fazer login. Por favor, tente novamente.');
     } finally {
       setIsLoading(false);

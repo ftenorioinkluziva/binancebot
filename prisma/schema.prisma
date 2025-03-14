@@ -67,12 +67,14 @@ model Strategy {
   id          String   @id @default(cuid())
   userId      String
   name        String
-  type        String   // DCA, BollingerBands, MovingAverage, etc.
-  config      Json
+  symbol      String
+  type        String   // DCA, BollingerBands, MovingAverage
   active      Boolean  @default(false)
+  config      Json     // Configurações específicas da estratégia
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lastRun     DateTime?
+  performance Float?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades      Trade[]
 }

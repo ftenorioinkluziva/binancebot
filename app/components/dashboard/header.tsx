@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { Bell, Menu, X, ChevronDown, User, LogOut, Settings } from 'lucide-react';
-import Image from 'next/image';
+import Link from 'next/link';
+//import Image from 'next/image';
 
 interface HeaderProps {
   user: {
@@ -92,22 +93,22 @@ export default function Header({ user }: HeaderProps) {
                     </div>
                   </div>
                   <div className="border-t border-gray-100"></div>
-                  
+                  <Link
                     href="/dashboard/profile"
                     className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     role="menuitem"
                   >
                     <User className="mr-3 h-4 w-4 text-gray-500" />
                     Seu Perfil
-                  </a>
-                  
+                  </Link>
+                  <Link
                     href="/dashboard/settings"
                     className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     role="menuitem"
                   >
                     <Settings className="mr-3 h-4 w-4 text-gray-500" />
                     Configurações
-                  </a>
+                  </Link>
                   <div className="border-t border-gray-100"></div>
                   <button
                     onClick={handleSignOut}

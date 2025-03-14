@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Play, Pause, ChevronRight, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 
 type Strategy = {
   id: string;
@@ -81,12 +82,12 @@ export function ActiveStrategies() {
               Comece criando sua primeira estratégia de trading automatizado.
             </p>
             <div className="mt-6">
-              
+              <Link
                 href="/dashboard/strategies/new"
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 Criar estratégia
-              </a>
+              </Link>
             </div>
           </div>
         ) : (
@@ -139,10 +140,10 @@ export function ActiveStrategies() {
           </div>
         )}
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <a href="/dashboard/strategies" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center">
+          <Link href="/dashboard/strategies" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center">
             Gerenciar estratégias
             <ChevronRight className="ml-1 h-4 w-4" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>
