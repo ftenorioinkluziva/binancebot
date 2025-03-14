@@ -1,6 +1,7 @@
 // app/lib/services/api-key-service.ts
 import { supabase } from '@/app/lib/supabase';
 import { EncryptionService } from './encryption-service';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface ApiKeyData {
   id?: string;
@@ -56,35 +57,72 @@ export class ApiKeyService {
     }
   }
 
-  static async createApiKey(data: ApiKeyData, userId: string): Promise<ApiKeyData> {
-    try {
-      // Criptografamos as chaves antes de salvar
-      const encryptedData = {
-        ...data,
-        userId,
-        apiKey: EncryptionService.encrypt(data.apiKey, userId),
-        apiSecret: EncryptionService.encrypt(data.apiSecret, userId),
-      };
+// app/lib/services/api-key-service.ts
 
-      const { data: createdKey, error } = await supabase
-        .from('ApiKey')
-        .insert([encryptedData])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Retornamos as chaves mascaradas
-      return {
-        ...createdKey,
-        apiKey: this.maskApiKey(data.apiKey),
-        apiSecret: '••••••••••••••••••••••••••••••',
-      };
-    } catch (error) {
-      console.error('Erro ao criar chave API:', error);
-      throw new Error('Falha ao criar chave API');
+static async createApiKey(data: ApiKeyData, userId: string): Promise<ApiKeyData> {
+  try {
+    // Verificar se já existe uma chave para esta exchange
+    const { data: existingKeys, error: checkError } = await supabase
+      .from('ApiKey')
+      .select('id, exchange')
+      .eq('userId', userId)
+      .eq('exchange', data.exchange);
+    
+    if (checkError) {
+      console.error('Erro ao verificar chaves existentes:', checkError);
+      throw new Error('Falha ao verificar chaves existentes');
     }
+    
+    // Se já existe uma chave para esta exchange, retornar erro
+    if (existingKeys && existingKeys.length > 0) {
+      throw new Error(`Já existe uma chave API para ${data.exchange}. Por favor, edite ou remova a chave existente.`);
+    }
+    
+    // Gerar um ID UUID para o novo registro
+    const id = uuidv4();
+    
+    // Obter data/hora atual
+    const now = new Date();
+    
+    // Criptografamos as chaves antes de salvar
+    const encryptedData = {
+      id,
+      ...data,
+      userId,
+      apiKey: EncryptionService.encrypt(data.apiKey, userId),
+      apiSecret: EncryptionService.encrypt(data.apiSecret, userId),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const { data: createdKey, error } = await supabase
+      .from('ApiKey')
+      .insert([encryptedData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro do Supabase:', error);
+      throw error;
+    }
+
+    // Retornamos as chaves mascaradas
+    return {
+      ...createdKey,
+      apiKey: this.maskApiKey(data.apiKey),
+      apiSecret: '••••••••••••••••••••••••••••••',
+    };
+  } catch (error) {
+    console.error('Erro ao criar chave API:', error);
+    
+    // Se for um erro de chave duplicada, retornar a mensagem específica
+    if (error instanceof Error && error.message.includes('Já existe uma chave API')) {
+      throw error;
+    }
+    
+    throw new Error('Falha ao criar chave API');
   }
+}
 
   static async updateApiKey(id: string, data: Partial<ApiKeyData>, userId: string): Promise<ApiKeyData> {
     try {

@@ -91,6 +91,53 @@ export default function ApiKeysPage() {
     }
   };
 
+  const onSubmit = async (data: ApiKeyFormValues) => {
+    setIsLoading(true);
+    
+    try {
+      // Convertemos as permissões do objeto para array
+      const permissionsArray = Object.entries(data.permissions)
+        .filter(([_, value]) => value)
+        .map(([key]) => key);
+      
+      const apiKeyData = {
+        name: data.name,
+        exchange: data.exchange,
+        apiKey: data.apiKey,
+        apiSecret: data.apiSecret,
+        permissions: permissionsArray,
+      };
+      
+      const response = await fetch('/api/api-keys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiKeyData),
+      });
+      
+      // Se o status for 409 Conflict, isso significa que já existe uma chave para essa exchange
+      if (response.status === 409) {
+        const errorData = await response.json();
+        toast.error(errorData.error);
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao salvar chave API');
+      }
+      
+      toast.success('Chave API adicionada com sucesso!');
+      router.push('/dashboard/api-keys');
+    } catch (error) {
+      console.error('Erro ao salvar chave API:', error);
+      toast.error('Ocorreu um erro ao salvar a chave API. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  }; 
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">

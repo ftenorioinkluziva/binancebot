@@ -37,6 +37,8 @@ export async function GET(req: Request) {
   }
 }
 
+// app/api/api-keys/route.ts
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -51,10 +53,20 @@ export async function POST(req: Request) {
     // Validar os dados
     const validatedData = apiKeySchema.parse(body);
     
-    // Criar a chave API
-    const apiKey = await ApiKeyService.createApiKey(validatedData, userId);
-    
-    return NextResponse.json(apiKey, { status: 201 });
+    try {
+      // Criar a chave API
+      const apiKey = await ApiKeyService.createApiKey(validatedData, userId);
+      return NextResponse.json(apiKey, { status: 201 });
+    } catch (error) {
+      // Verificar se é um erro de chave duplicada
+      if (error instanceof Error && error.message.includes('Já existe uma chave API')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 409 } // Status 409 Conflict para indicar um conflito de recursos
+        );
+      }
+      throw error; // Repassar outros erros para o handler global
+    }
   } catch (error) {
     console.error('Erro ao criar chave API:', error);
     

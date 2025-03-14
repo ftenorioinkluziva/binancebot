@@ -114,8 +114,207 @@ export default function NewApiKeyPage() {
             <CardTitle>Informações da Chave API</CardTitle>
             <CardDescription>
               Adicione uma nova chave API para integração com a exchange. Certifique-se de criar a chave API com as permissões corretas.
+              <div className="mt-1 text-amber-600">
+                Observação: É permitida apenas uma chave API por exchange.
+              </div>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2
+            <div className="space-y-2">
+                <Label htmlFor="name">Nome da Chave</Label>
+                <Input 
+                  id="name" 
+                  placeholder="Ex: Binance Principal" 
+                  {...register('name')}
+                />
+                {errors.name && (
+                  <p className="text-sm text-red-500">{errors.name.message}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="exchange">Exchange</Label>
+                <Controller
+                  name="exchange"
+                  control={control}
+                  render={({ field }) => (
+                    <Select 
+                      value={field.value} 
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger id="exchange">
+                        <SelectValue placeholder="Selecione a exchange" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exchanges.map((exchange) => (
+                          <SelectItem key={exchange.value} value={exchange.value}>
+                            {exchange.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="apiKey">Chave API</Label>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="h-6 w-6 p-0 rounded-full"
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <Input 
+                id="apiKey" 
+                type={showApiKey ? "text" : "password"} 
+                placeholder="Insira sua chave API" 
+                {...register('apiKey')}
+              />
+              {errors.apiKey && (
+                <p className="text-sm text-red-500">{errors.apiKey.message}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="apiSecret">Chave Secreta</Label>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowApiSecret(!showApiSecret)}
+                  className="h-6 w-6 p-0 rounded-full"
+                >
+                  {showApiSecret ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <Input 
+                id="apiSecret" 
+                type={showApiSecret ? "text" : "password"} 
+                placeholder="Insira sua chave secreta" 
+                {...register('apiSecret')}
+              />
+              {errors.apiSecret && (
+                <p className="text-sm text-red-500">{errors.apiSecret.message}</p>
+              )}
+            </div>
+            
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Permissões</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="permissions.spot"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="spot-permission" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="spot-permission">Spot Trading</Label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="permissions.margin"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="margin-permission" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="margin-permission">Margin Trading</Label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="permissions.futures"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="futures-permission" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="futures-permission">Futures Trading</Label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="permissions.withdraw"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="withdraw-permission" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="withdraw-permission">Withdraw</Label>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-yellow-50 p-4 rounded-md flex items-start">
+              <AlertCircle className="h-5 w-5 text-yellow-500 mr-3 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-medium text-yellow-800 mb-1">Importante sobre segurança</h4>
+                <p className="text-sm text-yellow-700">
+                  Suas chaves API são armazenadas com criptografia segura. No entanto, recomendamos:
+                </p>
+                <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside">
+                  <li>Habilitar apenas as permissões necessárias (desative withdrawals se não forem necessários)</li>
+                  <li>Restringir a chave API a endereços IP específicos na exchange</li>
+                  <li>Criar chaves API diferentes para finalidades diferentes</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <div className="mt-6 flex justify-end">
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="mr-2"
+            onClick={() => router.push('/dashboard/api-keys')}
+          >
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading && (
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+            )}
+            <Save className="mr-2 h-4 w-4" />
+            Salvar Chave API
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
