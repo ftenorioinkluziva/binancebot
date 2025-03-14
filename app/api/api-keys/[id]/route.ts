@@ -41,6 +41,11 @@ export async function GET(
   }
 }
 
+// Schema de validação para atualização apenas das permissões
+const updatePermissionsSchema = z.object({
+  permissions: z.array(z.string()),
+});
+
 export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
@@ -56,15 +61,25 @@ export async function PUT(
     const apiKeyId = params.id;
     const body = await req.json();
     
-    // Validar os dados
-    const validatedData = updateApiKeySchema.parse(body);
+    // Validar os dados - aceitamos apenas permissões aqui
+    const validatedData = updatePermissionsSchema.parse(body);
     
-    // Atualizar a chave API
-    const apiKey = await ApiKeyService.updateApiKey(apiKeyId, validatedData, userId);
+    // Verificar se há pelo menos uma permissão
+    if (validatedData.permissions.length === 0) {
+      return NextResponse.json(
+        { error: 'Selecione pelo menos uma permissão' },
+        { status: 400 }
+      );
+    }
+    
+    // Atualizar apenas as permissões da chave API
+    const apiKey = await ApiKeyService.updateApiKey(apiKeyId, {
+      permissions: validatedData.permissions
+    }, userId);
     
     return NextResponse.json(apiKey);
   } catch (error) {
-    console.error('Erro ao atualizar chave API:', error);
+    console.error('Erro ao atualizar permissões da chave API:', error);
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -74,7 +89,7 @@ export async function PUT(
     }
     
     return NextResponse.json(
-      { error: 'Erro ao atualizar chave API' },
+      { error: 'Erro ao atualizar permissões da chave API' },
       { status: 500 }
     );
   }
@@ -113,6 +128,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Extrair o id dos parâmetros de forma assíncrona
+    const id = params?.id;
+    
+    if (!id) {
+      return NextResponse.json({ error: 'ID não fornecido' }, { status: 400 });
+    }
+
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user) {
@@ -120,16 +142,29 @@ export async function POST(
     }
     
     const userId = session.user.id;
-    const apiKeyId = params.id;
+    //const apiKeyId = params.id;
     
     // Validar a chave API
-    const isValid = await ApiKeyService.validateApiKey(apiKeyId, userId);
+    const validationResult = await ApiKeyService.validateApiKey(apiKeyId, userId);
     
-    return NextResponse.json({ valid: isValid });
+    if (!validationResult.valid) {
+      return NextResponse.json({ 
+        valid: false, 
+        error: validationResult.errorMessage || 'Chave API inválida' 
+      }, { status: 400 });
+    }
+    
+    return NextResponse.json({
+      valid: true,
+      permissions: validationResult.permissions
+    });
   } catch (error) {
     console.error('Erro ao validar chave API:', error);
     return NextResponse.json(
-      { error: 'Erro ao validar chave API' },
+      { 
+        valid: false, 
+        error: error instanceof Error ? error.message : 'Erro ao validar chave API' 
+      },
       { status: 500 }
     );
   }

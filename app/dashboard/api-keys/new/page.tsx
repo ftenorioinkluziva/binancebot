@@ -75,11 +75,18 @@ export default function NewApiKeyPage() {
         },
         body: JSON.stringify(apiKeyData),
       });
+
+      const responseData = await response.json();
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao salvar chave API');
+    if (!response.ok) {
+      // Verificamos se o erro é específico de chave duplicada (status 409)
+      if (response.status === 409) {
+        toast.error(responseData.error || 'Já existe uma chave API para esta exchange');
+        return;
       }
+      
+      throw new Error(responseData.error || 'Falha ao salvar chave API');
+    }
       
       toast.success('Chave API adicionada com sucesso!');
       router.push('/dashboard/api-keys');
@@ -118,6 +125,22 @@ export default function NewApiKeyPage() {
                 Observação: É permitida apenas uma chave API por exchange.
               </div>
             </CardDescription>
+            <div className="bg-blue-50 p-4 rounded-md flex items-start mb-4">
+              <div className="shrink-0 text-blue-400 mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-blue-800">Uma chave API por exchange</h4>
+                <p className="text-sm text-blue-700">
+                  O sistema permite apenas uma chave API por exchange. Para usar uma chave diferente, 
+                  edite ou remova a existente.
+                </p>
+              </div>
+            </div>            
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

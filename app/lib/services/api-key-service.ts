@@ -2,6 +2,7 @@
 import { supabase } from '@/app/lib/supabase';
 import { EncryptionService } from './encryption-service';
 import { v4 as uuidv4 } from 'uuid';
+import { BinanceService } from './binance-service';
 
 export interface ApiKeyData {
   id?: string;
@@ -176,21 +177,51 @@ static async createApiKey(data: ApiKeyData, userId: string): Promise<ApiKeyData>
     }
   }
 
-  static async validateApiKey(id: string, userId: string): Promise<boolean> {
+  static async validateApiKey(id: string, userId: string): Promise<{
+    valid: boolean;
+    permissions: {
+      spot: boolean;
+      margin: boolean;
+      futures: boolean;
+      withdraw: boolean;
+    };
+    errorMessage?: string;
+  }> {
     try {
-      // Aqui você implementaria a verificação na exchange
-      // Por exemplo, fazendo uma chamada de teste para a API da Binance
-      const apiKey = await this.getApiKey(id, userId);
+      // Usar o BinanceService para validar a chave
+      const validationResult = await BinanceService.validateApiKey(id, userId);
       
-      // Exemplo simples - na implementação real você usaria o binance-connector
-      // para fazer uma chamada de teste
-      return true;
+      // Se a validação for bem-sucedida, podemos opcionalmente atualizar as permissões
+      // armazenadas para refletir as reais detectadas pela API
+      if (validationResult.valid) {
+        // Converter objeto de permissões para array
+        const detectedPermissions = Object.entries(validationResult.permissions)
+          .filter(([_, enabled]) => enabled)
+          .map(([key]) => key);
+        
+        // Atualizar as permissões na base de dados
+        if (detectedPermissions.length > 0) {
+          await this.updateApiKey(id, { 
+            permissions: detectedPermissions 
+          }, userId);
+        }
+      }
+      
+      return validationResult;
     } catch (error) {
       console.error('Erro ao validar chave API:', error);
-      return false;
+      return {
+        valid: false,
+        permissions: {
+          spot: false,
+          margin: false,
+          futures: false,
+          withdraw: false
+        },
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido ao validar a chave'
+      };
     }
   }
-
   // Função para mascarar a chave da API: exibe apenas os primeiros e últimos 4 caracteres
   private static maskApiKey(apiKey: string): string {
     if (!apiKey || apiKey.length < 8) return '••••••••••••••••';

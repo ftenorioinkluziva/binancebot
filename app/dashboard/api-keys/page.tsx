@@ -12,7 +12,9 @@ import {
   Check, 
   AlertTriangle,
   EyeOff,
-  Eye
+  Eye,
+  Copy,
+  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/app/components/ui/button';
@@ -70,26 +72,74 @@ export default function ApiKeysPage() {
 
   const validateApiKey = async (id: string) => {
     try {
+      setValidating(id);
+      toast.loading('Validando chave API...', { id: 'validating' });
+      
       const response = await fetch(`/api/api-keys/${id}`, {
         method: 'POST',
       });
       
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Falha ao validar chave API');
+        toast.error(result.error || 'Falha ao validar chave API', { id: 'validating' });
+        return;
       }
       
-      const { valid } = await response.json();
-      
-      if (valid) {
-        toast.success('Chave API válida e conectada com sucesso!');
+      if (result.valid) {
+        // Criar uma mensagem detalhada baseada nas permissões
+        const permissionsText = Object.entries(result.permissions)
+          .filter(([_, enabled]) => enabled)
+          .map(([key]) => {
+            switch(key) {
+              case 'spot': return 'Spot Trading';
+              case 'margin': return 'Margin Trading';
+              case 'futures': return 'Futures Trading';
+              case 'withdraw': return 'Saques';
+              default: return key;
+            }
+          })
+          .join(', ');
+        
+        toast.success(
+          `Chave API válida! Permissões detectadas: ${permissionsText || 'Nenhuma'}`, 
+          { id: 'validating', duration: 5000 }
+        );
+        
+        // Recarregar os dados da chave para refletir as permissões atualizadas
+        loadApiKeys();
       } else {
-        toast.error('Chave API inválida ou sem permissões necessárias.');
+        toast.error(result.error || 'Chave API inválida', { id: 'validating' });
       }
     } catch (error) {
       console.error('Erro ao validar chave API:', error);
-      toast.error('Ocorreu um erro ao validar a chave API.');
+      toast.error('Ocorreu um erro ao validar a chave API.', { id: 'validating' });
+    } finally {
+      setValidating(null);
     }
   };
+  
+  // Adicionar função para recarregar as chaves
+  const loadApiKeys = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/api-keys');
+      
+      if (!response.ok) {
+        throw new Error('Falha ao carregar chaves API');
+      }
+      
+      const data = await response.json();
+      setApiKeys(data);
+    } catch (error) {
+      console.error('Erro ao carregar chaves API:', error);
+      toast.error('Não foi possível carregar suas chaves API.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const [validating, setValidating] = useState<string | null>(null);
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsLoading(true);
@@ -174,61 +224,113 @@ export default function ApiKeysPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {apiKeys.map((apiKey) => (
-            <Card key={apiKey.id} className="overflow-hidden">
+            <Card key={apiKey.id} className="overflow-hidden border-l-4 border-l-indigo-500 w-full">
               <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{apiKey.name}</CardTitle>
-                  <Badge variant="outline">{apiKey.exchange}</Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="mr-3 p-2 bg-indigo-100 rounded-full">
+                      <Key className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg truncate max-w-[200px]">{apiKey.name}</CardTitle>
+                      <p className="text-sm text-gray-500">{apiKey.exchange === 'binance' ? 'Binance' : 'Binance US'}</p>
+                    </div>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap"
+                  >
+                    Ativa
+                  </Badge>
                 </div>
               </CardHeader>
+              
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <p className="text-sm text-gray-500">Chave API:</p>
-                    <p className="text-sm font-mono">{apiKey.apiKey}</p>
+                <div className="rounded-md border border-gray-200 p-3 bg-gray-50">
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-gray-500">Chave API</span>
+                        <div className="flex space-x-1">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full">
+                            <Eye className="h-3.5 w-3.5 text-gray-500" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="font-mono text-sm px-2 py-1.5 bg-white rounded border border-gray-200 overflow-x-auto">
+                        {/* Mostrar apenas os 10 primeiros caracteres seguidos por pontos */}
+                        {apiKey.apiKey.substring(0, 10)}•••••••••••••••••••••••
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-gray-500">Chave Secreta</span>
+                      </div>
+                      <div className="font-mono text-sm px-2 py-1.5 bg-white rounded border border-gray-200 overflow-x-auto">
+                        •••••••••••••••••••••••
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <p className="text-sm text-gray-500">Chave Secreta:</p>
-                    <p className="text-sm font-mono">{apiKey.apiSecret}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {apiKey.permissions.map((permission) => (
-                      <Badge key={permission} variant="secondary" className="text-xs">
-                        {permission}
+                </div>
+                
+
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500 mb-2">Permissões</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {apiKey.permissions.map((permission: string) => (
+                      <Badge key={permission} className="bg-blue-50 text-blue-700 border-blue-100">
+                        {permission === 'spot' && 'Spot Trading'}
+                        {permission === 'margin' && 'Margin Trading'}
+                        {permission === 'futures' && 'Futures Trading'}
+                        {permission === 'withdraw' && 'Saques'}
                       </Badge>
                     ))}
                   </div>
                 </div>
                 
-                <div className="flex justify-between pt-4 border-t border-gray-100">
-                  <div className="space-x-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/api-keys/${apiKey.id}`}>
-                        <Edit className="h-4 w-4 mr-1" />
-                        Editar
-                      </Link>
+                <div className="pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-2">
+                  <div className="text-xs text-gray-500 whitespace-nowrap">
+                    Criada em {new Date(apiKey.createdAt).toLocaleDateString()}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 flex items-center"
+                      onClick={() => router.push(`/dashboard/api-keys/${apiKey.id}`)}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Editar
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => deleteApiKey(apiKey.id!)}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 h-8 flex items-center"
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
                       Excluir
                     </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => validateApiKey(apiKey.id!)}
+                      className="text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 h-8 flex items-center"
+                      disabled={validating === apiKey.id}
+                    >
+                      {validating === apiKey.id ? (
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+                      ) : (
+                        <ShieldCheck className="h-4 w-4 mr-1" />
+                      )}
+                      Validar
+                    </Button>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => validateApiKey(apiKey.id!)}
-                  >
-                    <Key className="h-4 w-4 mr-1" />
-                    Validar
-                  </Button>
                 </div>
               </CardContent>
             </Card>
+
           ))}
         </div>
       )}
