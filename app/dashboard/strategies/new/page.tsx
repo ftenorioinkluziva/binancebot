@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller, Resolver } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Save } from 'lucide-react';
@@ -18,58 +18,56 @@ import { Switch } from '@/app/components/ui/switch';
 import { Label } from '@/app/components/ui/label';
 import { StrategyService } from '@/app/lib/services/strategy-service';
 
-// Definir schema para os formulários com Zod
-const baseStrategySchema = z.object({
-  name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
-  symbol: z.string().min(1, 'Selecione um par de trading'),
-  type: z.enum(['DCA', 'BollingerBands', 'MovingAverage']),
-  active: z.boolean().default(false),
-});
+// Schema combinado que aceita qualquer tipo de estratégia
+const strategySchema = z.discriminatedUnion('type', [
+  // DCA Schema
+  z.object({
+    type: z.literal('DCA'),
+    name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
+    symbol: z.string().min(1, 'Selecione um par de trading'),
+    active: z.boolean().default(false),
+    amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+    frequency: z.enum(['daily', 'weekly', 'monthly']),
+    dayOfWeek: z.number().optional(),
+    dayOfMonth: z.number().optional(),
+    hour: z.number().min(0).max(23).optional(),
+  }),
+  
+  // Bollinger Bands Schema
+  z.object({
+    type: z.literal('BollingerBands'),
+    name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
+    symbol: z.string().min(1, 'Selecione um par de trading'),
+    active: z.boolean().default(false),
+    period: z.number().min(5).max(100),
+    deviation: z.number().min(1).max(5),
+    amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+    buyLowerBand: z.boolean(),
+    sellUpperBand: z.boolean(),
+    trailingStopLoss: z.number().optional(),
+  }),
+  
+  // Moving Average Schema
+  z.object({
+    type: z.literal('MovingAverage'),
+    name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
+    symbol: z.string().min(1, 'Selecione um par de trading'),
+    active: z.boolean().default(false),
+    fastPeriod: z.number().min(5).max(50),
+    slowPeriod: z.number().min(10).max(200),
+    signalPeriod: z.number().min(5).max(50),
+    amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+    maType: z.enum(['SMA', 'EMA', 'WMA']),
+  }),
+]);
 
-const dcaSchema = baseStrategySchema.extend({
-  type: z.literal('DCA'),
-  amount: z.number().min(1, 'Valor precisa ser maior que 0'),
-  frequency: z.enum(['daily', 'weekly', 'monthly']),
-  dayOfWeek: z.number().optional(),
-  dayOfMonth: z.number().optional(),
-  hour: z.number().min(0).max(23).optional(),
-});
-
-const bollingerSchema = baseStrategySchema.extend({
-  type: z.literal('BollingerBands'),
-  period: z.number().min(5).max(100),
-  deviation: z.number().min(1).max(5),
-  amount: z.number().min(1, 'Valor precisa ser maior que 0'),
-  buyLowerBand: z.boolean(),
-  sellUpperBand: z.boolean(),
-  trailingStopLoss: z.number().optional(),
-});
-
-const maSchema = baseStrategySchema.extend({
-  type: z.literal('MovingAverage'),
-  fastPeriod: z.number().min(5).max(50),
-  slowPeriod: z.number().min(10).max(200),
-  signalPeriod: z.number().min(5).max(50),
-  amount: z.number().min(1, 'Valor precisa ser maior que 0'),
-  maType: z.enum(['SMA', 'EMA', 'WMA']),
-});
-
-// Definir tipos baseados nos schemas
-type DCAStrategy = z.infer<typeof dcaSchema>;
-type BollingerStrategy = z.infer<typeof bollingerSchema>;
-type MAStrategy = z.infer<typeof maSchema>;
-
-// Função para verificar se uma estratégia é do tipo DCA
-const isDCAStrategy = (data: any): data is DCAStrategy => {
-  return data && data.type === 'DCA';
-};
+type StrategyFormValues = z.infer<typeof strategySchema>;
 
 export default function NewStrategyPage() {
   const router = useRouter();
-  const [selectedType, setSelectedType] = useState<'DCA' | 'BollingerBands' | 'MovingAverage'>('DCA');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Simular lista de pares disponíveis
+  // Lista de pares disponíveis
   const availablePairs = [
     { value: 'BTC/USDT', label: 'BTC/USDT - Bitcoin' },
     { value: 'ETH/USDT', label: 'ETH/USDT - Ethereum' },
@@ -80,68 +78,76 @@ export default function NewStrategyPage() {
     { value: 'DOGE/USDT', label: 'DOGE/USDT - Dogecoin' },
   ];
 
-  // Vamos usar uma abordagem que cria um novo formulário quando o tipo muda
-  const DCAForm = useForm<DCAStrategy>({
-    resolver: zodResolver(dcaSchema),
+  // Configurar o formulário com valores padrão para o tipo DCA
+  const { 
+    register, handleSubmit, control, formState: { errors }, 
+    watch, setValue, reset 
+  } = useForm<StrategyFormValues>({
+    resolver: zodResolver(strategySchema),
     defaultValues: {
       type: 'DCA',
+      name: '',
+      symbol: '',
       active: false,
       amount: 50,
       frequency: 'weekly',
       dayOfWeek: 1,
-    }
-  });
-  
-  const BollingerForm = useForm<BollingerStrategy>({
-    resolver: zodResolver(bollingerSchema),
-    defaultValues: {
-      type: 'BollingerBands',
-      active: false,
-      period: 20,
-      deviation: 2,
-      amount: 100,
-      buyLowerBand: true,
-      sellUpperBand: true,
-    }
-  });
-  
-  const MAForm = useForm<MAStrategy>({
-    resolver: zodResolver(maSchema),
-    defaultValues: {
-      type: 'MovingAverage',
-      active: false,
-      fastPeriod: 9,
-      slowPeriod: 21,
-      signalPeriod: 9,
-      amount: 75,
-      maType: 'EMA',
-    }
+    } as StrategyFormValues
   });
 
-  // Selecionar o formulário apropriado baseado no tipo
-  const currentForm = selectedType === 'DCA' 
-    ? DCAForm 
-    : selectedType === 'BollingerBands' 
-      ? BollingerForm 
-      : MAForm;
-  
-  const { register, handleSubmit, control, formState: { errors }, watch, reset } = currentForm;
-  
-  // Para DCA, nos precisamos acessar o frequency
+  // Valores observados para atualização da UI
   const watchedValues = watch();
-  const frequency = selectedType === 'DCA' ? (watchedValues as DCAStrategy).frequency : undefined;
+  const selectedType = watchedValues.type;
+  const frequency = selectedType === 'DCA' ? watchedValues.frequency : undefined;
 
-  const onSubmit = async (data: DCAStrategy | BollingerStrategy | MAStrategy) => {
+  // Função para mudar o tipo de estratégia
+  const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
+    // Preservar valores comuns
+    const commonValues = {
+      name: watchedValues.name,
+      symbol: watchedValues.symbol,
+      active: watchedValues.active,
+    };
+    
+    // Resetar o form com novos valores padrão baseados no tipo
+    if (value === 'DCA') {
+      reset({
+        ...commonValues,
+        type: 'DCA',
+        amount: 50,
+        frequency: 'weekly',
+        dayOfWeek: 1,
+      } as StrategyFormValues);
+    } else if (value === 'BollingerBands') {
+      reset({
+        ...commonValues,
+        type: 'BollingerBands',
+        period: 20,
+        deviation: 2,
+        amount: 100,
+        buyLowerBand: true,
+        sellUpperBand: true,
+      } as StrategyFormValues);
+    } else if (value === 'MovingAverage') {
+      reset({
+        ...commonValues,
+        type: 'MovingAverage',
+        fastPeriod: 9,
+        slowPeriod: 21,
+        signalPeriod: 9,
+        amount: 75,
+        maType: 'EMA',
+      } as StrategyFormValues);
+    }
+  };
+
+  // Manipulador de submit
+  const onSubmit = async (data: StrategyFormValues) => {
     setIsSubmitting(true);
     
     try {
-      // Usar o serviço para criar estratégia
       await StrategyService.createStrategy(data);
-      
-      // Mensagem de sucesso
       toast.success('Estratégia criada com sucesso!');
-      
-      // Redirecionar para a lista de estratégias
       router.push('/dashboard/strategies');
     } catch (error) {
       console.error('Erro ao salvar estratégia:', error);
@@ -151,56 +157,16 @@ export default function NewStrategyPage() {
     }
   };
 
-  const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
-    setSelectedType(value);
-    
-    // Resetar o formulário com os valores padrão do novo tipo
-    if (value === 'DCA') {
-      reset({
-        type: 'DCA',
-        active: false,
-        name: '',
-        symbol: '',
-        amount: 50,
-        frequency: 'weekly',
-        dayOfWeek: 1,
-      } as z.infer<typeof dcaSchema>);
-    } else if (value === 'BollingerBands') {
-      reset({
-        type: 'BollingerBands',
-        active: false,
-        name: '',
-        symbol: '',
-        period: 20,
-        deviation: 2,
-        amount: 100,
-        buyLowerBand: true,
-        sellUpperBand: true,
-      } as z.infer<typeof bollingerSchema>);
-    } else if (value === 'MovingAverage') {
-      reset({
-        type: 'MovingAverage',
-        active: false,
-        name: '',
-        symbol: '',
-        fastPeriod: 9,
-        slowPeriod: 21,
-        signalPeriod: 9,
-        amount: 75,
-        maType: 'EMA',
-      } as z.infer<typeof maSchema>);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center">
-        <Button variant="ghost" size="sm" asChild className="mr-4">
-          <Link href="/dashboard/strategies">
+        {/* Correção do erro asChild - Use Link envolvendo Button em vez de asChild */}
+        <Link href="/dashboard/strategies">
+          <Button variant="ghost" size="sm" className="mr-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
-          </Link>
-        </Button>
+          </Button>
+        </Link>
         <h1 className="text-2xl font-semibold text-gray-900">Nova Estratégia</h1>
       </div>
       
@@ -261,7 +227,6 @@ export default function NewStrategyPage() {
                   <Tabs 
                     value={field.value} 
                     onValueChange={(value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
-                      field.onChange(value);
                       handleTypeChange(value);
                     }}
                     className="w-full"
@@ -318,14 +283,14 @@ export default function NewStrategyPage() {
                     )}
                   />
                   {errors.amount && (
-                    <p className="text-sm text-red-500">{errors.amount.message}</p>
+                    <p className="text-sm text-red-500">{errors.amount?.message}</p>
                   )}
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="frequency">Frequência</Label>
                   <Controller
-                    name={`frequency`}
+                    name="frequency"
                     control={control}
                     render={({ field }) => (
                       <Select 
@@ -430,25 +395,21 @@ export default function NewStrategyPage() {
               <div className="bg-blue-50 p-4 rounded-md">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
                 <p className="text-sm text-blue-700">
-                  {isDCAStrategy(watchedValues) && (
-                    <>
-                      Esta estratégia irá comprar 
-                      <span className="font-medium"> {watchedValues.amount} USDT </span>
-                      de {watchedValues.symbol || '[selecione um par]'} 
-                      {watchedValues.frequency === 'daily' && ' todos os dias'}
-                      {watchedValues.frequency === 'weekly' && ` toda semana às ${
-                        watchedValues.dayOfWeek === 0 ? 'domingos' :
-                        watchedValues.dayOfWeek === 1 ? 'segundas-feiras' :
-                        watchedValues.dayOfWeek === 2 ? 'terças-feiras' :
-                        watchedValues.dayOfWeek === 3 ? 'quartas-feiras' :
-                        watchedValues.dayOfWeek === 4 ? 'quintas-feiras' :
-                        watchedValues.dayOfWeek === 5 ? 'sextas-feiras' :
-                        'sábados'
-                      }`}
-                      {watchedValues.frequency === 'monthly' && ` todo mês no dia ${watchedValues.dayOfMonth || 1}`}
-                      {watchedValues.hour !== undefined && ` às ${watchedValues.hour.toString().padStart(2, '0')}:00`}.
-                    </>
-                  )}
+                  Esta estratégia irá comprar 
+                  <span className="font-medium"> {watchedValues.amount} USDT </span>
+                  de {watchedValues.symbol || '[selecione um par]'} 
+                  {watchedValues.frequency === 'daily' && ' todos os dias'}
+                  {watchedValues.frequency === 'weekly' && ` toda semana às ${
+                    watchedValues.dayOfWeek === 0 ? 'domingos' :
+                    watchedValues.dayOfWeek === 1 ? 'segundas-feiras' :
+                    watchedValues.dayOfWeek === 2 ? 'terças-feiras' :
+                    watchedValues.dayOfWeek === 3 ? 'quartas-feiras' :
+                    watchedValues.dayOfWeek === 4 ? 'quintas-feiras' :
+                    watchedValues.dayOfWeek === 5 ? 'sextas-feiras' :
+                    'sábados'
+                  }`}
+                  {watchedValues.frequency === 'monthly' && ` todo mês no dia ${watchedValues.dayOfMonth || 1}`}
+                  {watchedValues.hour !== undefined && ` às ${watchedValues.hour.toString().padStart(2, '0')}:00`}.
                 </p>
               </div>
             </CardContent>
@@ -461,8 +422,138 @@ export default function NewStrategyPage() {
               <CardTitle>Configuração de Bandas de Bollinger</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Conteúdo para Bollinger Bands - sem alterações */}
-              {/* ... */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="period">Período</Label>
+                  <Controller
+                    name="period"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="period" 
+                        type="number"
+                        min="5"
+                        max="100"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">Períodos para calcular a média móvel (recomendado: 20)</p>
+                  {errors.period && (
+                    <p className="text-sm text-red-500">{errors.period?.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="deviation">Desvio Padrão</Label>
+                  <Controller
+                    name="deviation"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="deviation" 
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="0.1"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">Multiplicador do desvio padrão (recomendado: 2)</p>
+                  {errors.deviation && (
+                    <p className="text-sm text-red-500">{errors.deviation?.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="bbAmount">Valor por Operação (USDT)</Label>
+                  <Controller
+                    name="amount"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="bbAmount" 
+                        type="number"
+                        min="1"
+                        step="0.1"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    )}
+                  />
+                  {errors.amount && (
+                    <p className="text-sm text-red-500">{errors.amount?.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="buyLowerBand"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="buyLowerBand" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange} 
+                      />
+                    )}
+                  />
+                  <Label htmlFor="buyLowerBand">Comprar na banda inferior</Label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="sellUpperBand"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch 
+                        id="sellUpperBand" 
+                        checked={field.value} 
+                        onCheckedChange={field.onChange} 
+                      />
+                    )}
+                  />
+                  <Label htmlFor="sellUpperBand">Vender na banda superior</Label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trailingStopLoss">Stop Loss Móvel (%)</Label>
+                <Controller
+                  name="trailingStopLoss"
+                  control={control}
+                  render={({ field }) => (
+                    <Input 
+                      id="trailingStopLoss" 
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.1"
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                      placeholder="Opcional"
+                    />
+                  )}
+                />
+                <p className="text-xs text-gray-500">Porcentagem para stop loss móvel (deixe em branco para desativar)</p>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-md">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
+                <p className="text-sm text-blue-700">
+                  Esta estratégia irá usar Bandas de Bollinger com período de {watchedValues.period} e desvio padrão de {watchedValues.deviation} 
+                  para {watchedValues.symbol || '[selecione um par]'}.
+                  {watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
+                  {watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
+                  {' '}Cada operação utilizará {watchedValues.amount} USDT.
+                  {watchedValues.trailingStopLoss && ` Um stop loss móvel de ${watchedValues.trailingStopLoss}% será aplicado.`}
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -473,8 +564,132 @@ export default function NewStrategyPage() {
               <CardTitle>Configuração de Média Móvel</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Conteúdo para Moving Average - sem alterações */}
-              {/* ... */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="fastPeriod">Período Rápido</Label>
+                  <Controller
+                    name="fastPeriod"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="fastPeriod" 
+                        type="number"
+                        min="5"
+                        max="50"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">Período da média móvel rápida (recomendado: 9)</p>
+                  {errors.fastPeriod && (
+                    <p className="text-sm text-red-500">{errors.fastPeriod?.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="slowPeriod">Período Lento</Label>
+                  <Controller
+                    name="slowPeriod"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="slowPeriod" 
+                        type="number"
+                        min="10"
+                        max="200"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">Período da média móvel lenta (recomendado: 21)</p>
+                  {errors.slowPeriod && (
+                    <p className="text-sm text-red-500">{errors.slowPeriod?.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="maAmount">Valor por Operação (USDT)</Label>
+                  <Controller
+                    name="amount"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="maAmount" 
+                        type="number"
+                        min="1"
+                        step="0.1"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      />
+                    )}
+                  />
+                  {errors.amount && (
+                    <p className="text-sm text-red-500">{errors.amount?.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="signalPeriod">Período de Sinal</Label>
+                  <Controller
+                    name="signalPeriod"
+                    control={control}
+                    render={({ field }) => (
+                      <Input 
+                        id="signalPeriod" 
+                        type="number"
+                        min="5"
+                        max="50"
+                        value={field.value}
+                        onChange={(e) => field.onChange(parseInt(e.target.value))}
+                      />
+                    )}
+                  />
+                  <p className="text-xs text-gray-500">Período para a linha de sinal (recomendado: 9)</p>
+                  {errors.signalPeriod && (
+                    <p className="text-sm text-red-500">{errors.signalPeriod?.message}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="maType">Tipo de Média Móvel</Label>
+                  <Controller
+                    name="maType"
+                    control={control}
+                    render={({ field }) => (
+                      <Select 
+                        value={field.value} 
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger id="maType">
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SMA">Simples (SMA)</SelectItem>
+                          <SelectItem value="EMA">Exponencial (EMA)</SelectItem>
+                          <SelectItem value="WMA">Ponderada (WMA)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.maType && (
+                    <p className="text-sm text-red-500">{errors.maType?.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-md">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
+                <p className="text-sm text-blue-700">
+                  Esta estratégia irá usar cruzamento de Médias Móveis do tipo {watchedValues.maType || 'EMA'} com períodos 
+                  de {watchedValues.fastPeriod} (rápida) e {watchedValues.slowPeriod} (lenta) para {watchedValues.symbol || '[selecione um par]'}.
+                  Comprará quando a média rápida cruzar para cima da média lenta e venderá quando cruzar para baixo.
+                  Cada operação utilizará {watchedValues.amount} USDT.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
