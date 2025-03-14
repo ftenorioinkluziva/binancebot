@@ -1,30 +1,24 @@
 // components/dashboard/dashboard-overview.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Clock } from 'lucide-react';
 
-export function DashboardOverview() {
-  const [stats, setStats] = useState({
-    totalBalance: 0,
-    dailyChange: 0,
-    totalProfit: 0,
-    activeStrategies: 0,
-  });
-  
-  // Simulação de carregamento de dados
-  useEffect(() => {
-    // Em um caso real, você buscaria esses dados da API
-    setTimeout(() => {
-      setStats({
-        totalBalance: 12453.28,
-        dailyChange: 2.7,
-        totalProfit: 1241.87,
-        activeStrategies: 3,
-      });
-    }, 1000);
-  }, []);
+interface DashboardOverviewProps {
+  totalBalance: number;
+  dailyChange: number;
+  totalProfit: number;
+  activeStrategies: number;
+  isLoading: boolean;
+}
 
+export function DashboardOverview({
+  totalBalance,
+  dailyChange,
+  totalProfit,
+  activeStrategies,
+  isLoading
+}: DashboardOverviewProps) {
+  
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
       <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
@@ -39,9 +33,13 @@ export function DashboardOverview() {
                   Saldo Total
                 </dt>
                 <dd>
-                  <div className="text-lg font-medium text-gray-900">
-                    ${stats.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
+                  {isLoading ? (
+                    <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+                  ) : (
+                    <div className="text-lg font-medium text-gray-900">
+                      ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </dd>
               </dl>
             </div>
@@ -51,7 +49,7 @@ export function DashboardOverview() {
         <div className="p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0 rounded-md bg-green-100 p-3">
-              {stats.dailyChange >= 0 ? (
+              {dailyChange >= 0 ? (
                 <TrendingUp className="h-6 w-6 text-green-600" />
               ) : (
                 <TrendingDown className="h-6 w-6 text-red-600" />
@@ -63,11 +61,15 @@ export function DashboardOverview() {
                   Variação 24h
                 </dt>
                 <dd>
-                  <div className={`text-lg font-medium ${
-                    stats.dailyChange >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {stats.dailyChange >= 0 ? '+' : ''}{stats.dailyChange}%
-                  </div>
+                  {isLoading ? (
+                    <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+                  ) : (
+                    <div className={`text-lg font-medium ${
+                      dailyChange >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {dailyChange >= 0 ? '+' : ''}{dailyChange.toFixed(2)}%
+                    </div>
+                  )}
                 </dd>
               </dl>
             </div>
@@ -85,9 +87,13 @@ export function DashboardOverview() {
                   Lucro Total
                 </dt>
                 <dd>
-                  <div className="text-lg font-medium text-gray-900">
-                    ${stats.totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
+                  {isLoading ? (
+                    <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+                  ) : (
+                    <div className="text-lg font-medium text-gray-900">
+                      ${totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </dd>
               </dl>
             </div>
@@ -105,9 +111,13 @@ export function DashboardOverview() {
                   Estratégias Ativas
                 </dt>
                 <dd>
-                  <div className="text-lg font-medium text-gray-900">
-                    {stats.activeStrategies}
-                  </div>
+                  {isLoading ? (
+                    <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+                  ) : (
+                    <div className="text-lg font-medium text-gray-900">
+                      {activeStrategies}
+                    </div>
+                  )}
                 </dd>
               </dl>
             </div>

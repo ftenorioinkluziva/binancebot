@@ -2,17 +2,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 
-// Função auxiliar para verificar propriedade da estratégia
-async function isStrategyOwner(strategyId: string, userId: string) {
-  const strategy = await prisma.strategy.findUnique({
-    where: { id: strategyId },
-    select: { userId: true }
-  });
-  
-  return strategy?.userId === userId;
-}
 
 export async function POST(
   req: Request,
@@ -29,18 +20,16 @@ export async function POST(
     const userId = session.user.id;
     
     // Verificar se o usuário tem acesso à estratégia
-    if (!(await isStrategyOwner(strategyId, userId))) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
-    }
-    
-    // Buscar a estratégia
     const strategy = await prisma.strategy.findUnique({
-      where: { id: strategyId }
+      where: { 
+        id: strategyId,
+        userId
+      }
     });
     
     if (!strategy) {
       return NextResponse.json(
-        { error: 'Estratégia não encontrada' },
+        { error: 'Estratégia não encontrada ou acesso negado' },
         { status: 404 }
       );
     }

@@ -1,35 +1,16 @@
 // components/dashboard/market-overview.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { MarketPair } from '@/app/lib/services/dashboard-service';
 
-type MarketItem = {
-  symbol: string;
-  price: number;
-  change24h: number;
-  volume: number;
-};
+interface MarketOverviewProps {
+  marketData: MarketPair[];
+  isLoading: boolean;
+}
 
-export function MarketOverview() {
-  const [marketData, setMarketData] = useState<MarketItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Simulação de carregamento de dados
-  useEffect(() => {
-    // Em um caso real, você buscaria esses dados da API da Binance
-    setTimeout(() => {
-      setMarketData([
-        { symbol: 'BTC/USDT', price: 43250.78, change24h: 2.8, volume: 24789651.34 },
-        { symbol: 'ETH/USDT', price: 3278.45, change24h: 1.5, volume: 15489621.23 },
-        { symbol: 'BNB/USDT', price: 432.12, change24h: -0.7, volume: 5987432.12 },
-        { symbol: 'SOL/USDT', price: 98.75, change24h: 5.2, volume: 4123654.45 },
-        { symbol: 'XRP/USDT', price: 0.578, change24h: -1.2, volume: 3452187.67 },
-      ]);
-      setIsLoading(false);
-    }, 1200);
-  }, []);
-
+export function MarketOverview({ marketData, isLoading }: MarketOverviewProps) {
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
       <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
@@ -41,6 +22,13 @@ export function MarketOverview() {
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+          </div>
+        ) : marketData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <p className="text-gray-500 mb-4">Não foi possível carregar dados de mercado.</p>
+            <p className="text-sm text-gray-400">
+              Verifique sua conexão com a API da exchange.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -83,7 +71,7 @@ export function MarketOverview() {
                         ) : (
                           <TrendingDown className="mr-1 h-4 w-4" />
                         )}
-                        {item.change24h >= 0 ? '+' : ''}{item.change24h}%
+                        {item.change24h >= 0 ? '+' : ''}{item.change24h.toFixed(2)}%
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -98,10 +86,10 @@ export function MarketOverview() {
           </div>
         )}
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <a href="/dashboard/market" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center">
+          <Link href="/dashboard/market" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 flex items-center">
             Ver todos os mercados
             <ChevronRight className="ml-1 h-4 w-4" />
-          </a>
+          </Link>
         </div>
       </div>
     </div>

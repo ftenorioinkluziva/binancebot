@@ -351,4 +351,148 @@ export class BinanceService {
       throw new Error('Falha ao criar ordem: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
     }
   }
+
+// Adicione este método ao BinanceService
+
+/**
+ * Busca ordens recentes do usuário
+ * @param apiKeyId ID da chave API
+ * @param userId ID do usuário
+ * @returns Lista de ordens recentes
+ */
+static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
+  try {
+    // Recuperar dados da chave API
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+    
+    // Determinar a URL base baseada no tipo de exchange
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
+    
+    // Buscar todas as ordens dos últimos 7 dias
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const params = {
+      startTime: sevenDaysAgo.toString()
+    };
+    
+    // Buscar histórico de todas as ordens do usuário
+    const allOrders = await this.makeSignedRequest(
+      '/api/v3/allOrders',
+      params,
+      'GET',
+      apiKeyData.apiKey,
+      apiKeyData.apiSecret,
+      baseUrl
+    );
+    
+    // Se não houver histórico de todas as ordens, tentar buscar apenas ordens recentes
+    if (!allOrders || allOrders.length === 0) {
+      return await this.makeSignedRequest(
+        '/api/v3/myTrades',
+        params,
+        'GET',
+        apiKeyData.apiKey,
+        apiKeyData.apiSecret,
+        baseUrl
+      );
+    }
+    
+    return allOrders;
+  } catch (error) {
+    console.error('Erro ao buscar ordens recentes:', error);
+    
+    // Em caso de erro de permissão, tentar endpoint alternativo
+    if (error.message && error.message.includes('permissions')) {
+      try {
+        // Recuperar dados da chave API
+        const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+        
+        // Determinar a URL base baseada no tipo de exchange
+        const baseUrl = apiKeyData.exchange === 'binance_us' 
+          ? 'https://api.binance.us' 
+          : 'https://api.binance.com';
+        
+        // Tentar buscar apenas as ordens abertas (endpoint com menos restrições)
+        return await this.makeSignedRequest(
+          '/api/v3/openOrders',
+          {},
+          'GET',
+          apiKeyData.apiKey,
+          apiKeyData.apiSecret,
+          baseUrl
+        );
+      } catch (openOrdersError) {
+        console.error('Erro ao buscar ordens abertas:', openOrdersError);
+        return [];
+      }
+    }
+    
+    return [];
+  }
+}
+/**
+ * Busca preços atuais para todos os pares
+ * @param apiKeyId ID da chave API
+ * @param userId ID do usuário
+ */
+static async getMarketPrices(apiKeyId: string, userId: string): Promise<Record<string, string>> {
+  try {
+    // Recuperar dados da chave API
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+    
+    // Determinar a URL base baseada no tipo de exchange
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
+    
+    // Buscar preços atuais (endpoint público, não precisa de autenticação)
+    const prices = await this.makePublicRequest(
+      '/api/v3/ticker/price',
+      {},
+      baseUrl
+    );
+    
+    // Converter array para objeto {symbol: price}
+    const priceMap = {};
+    prices.forEach(item => {
+      priceMap[item.symbol] = item.price;
+    });
+    
+    return priceMap;
+  } catch (error) {
+    console.error('Erro ao buscar preços de mercado:', error);
+    throw new Error('Não foi possível obter informações de preço');
+  }
+}
+
+/**
+ * Busca dados de ticker 24h para todos os pares
+ * @param apiKeyId ID da chave API
+ * @param userId ID do usuário
+ */
+static async get24hMarketData(apiKeyId: string, userId: string): Promise<any[]> {
+  try {
+    // Recuperar dados da chave API
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+    
+    // Determinar a URL base baseada no tipo de exchange
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
+    
+    // Buscar dados de 24h (endpoint público, não precisa de autenticação)
+    const tickers = await this.makePublicRequest(
+      '/api/v3/ticker/24hr',
+      {},
+      baseUrl
+    );
+    
+    return tickers;
+  } catch (error) {
+    console.error('Erro ao buscar dados de 24h:', error);
+    throw new Error('Não foi possível obter dados de mercado');
+  }
+}
+
 }

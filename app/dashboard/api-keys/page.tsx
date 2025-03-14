@@ -9,12 +9,9 @@ import {
   Edit, 
   Trash2, 
   Key, 
-  Check, 
+  ShieldCheck,
   AlertTriangle,
-  EyeOff,
   Eye,
-  Copy,
-  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/app/components/ui/button';
@@ -22,31 +19,96 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Badge } from '@/app/components/ui/badge';
 import { ApiKeyData } from '@/app/lib/services/api-key-service';
 
+// Mapeia as permissões da API para um formato legível
+const mapApiPermissions = (permissions: string[]) => {
+  const displayPermissions = {
+    read: true, // Leitura é sempre ativa
+    spotTrading: permissions.includes('SPOT'),
+    marginTrading: permissions.includes('MARGIN'),
+    marginLoan: permissions.includes('MARGIN_LOAN'),
+    transfer: permissions.includes('TRANSFER'),
+    withdraw: permissions.includes('WITHDRAW'),
+    symbolList: permissions.includes('SYMBOLLIST')
+  };
+
+  return displayPermissions;
+};
+
+// Componente para renderizar as badges de permissões
+const PermissionBadges = ({ permissions }: { permissions: string[] }) => {
+  const displayPermissions = mapApiPermissions(permissions);
+  
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+        Leitura
+      </Badge>
+      
+      {displayPermissions.spotTrading && (
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+          Spot Trading
+        </Badge>
+      )}
+      
+      {displayPermissions.marginTrading && (
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+          Margin Trading
+        </Badge>
+      )}
+      
+      {displayPermissions.marginLoan && (
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+          Empréstimo de Margem
+        </Badge>
+      )}
+      
+      {displayPermissions.transfer && (
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+          Transferência
+        </Badge>
+      )}
+      
+      {displayPermissions.withdraw && (
+        <Badge className="bg-yellow-50 text-yellow-700 border-yellow-100">
+          Saques
+        </Badge>
+      )}
+      
+      {displayPermissions.symbolList && (
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+          Lista de Símbolos
+        </Badge>
+      )}
+    </div>
+  );
+};
+
 export default function ApiKeysPage() {
   const router = useRouter();
   const [apiKeys, setApiKeys] = useState<ApiKeyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [validating, setValidating] = useState<string | null>(null);
+  
+  const loadApiKeys = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/api-keys');
+      
+      if (!response.ok) {
+        throw new Error('Falha ao carregar chaves API');
+      }
+      
+      const data = await response.json();
+      setApiKeys(data);
+    } catch (error) {
+      console.error('Erro ao carregar chaves API:', error);
+      toast.error('Não foi possível carregar suas chaves API.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   useEffect(() => {
-    const loadApiKeys = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/api-keys');
-        
-        if (!response.ok) {
-          throw new Error('Falha ao carregar chaves API');
-        }
-        
-        const data = await response.json();
-        setApiKeys(data);
-      } catch (error) {
-        console.error('Erro ao carregar chaves API:', error);
-        toast.error('Não foi possível carregar suas chaves API.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadApiKeys();
   }, []);
 
@@ -106,7 +168,7 @@ export default function ApiKeysPage() {
           { id: 'validating', duration: 5000 }
         );
         
-        // Recarregar os dados da chave para refletir as permissões atualizadas
+        // Recarregar os dados da chave
         loadApiKeys();
       } else {
         toast.error(result.error || 'Chave API inválida', { id: 'validating' });
@@ -118,75 +180,6 @@ export default function ApiKeysPage() {
       setValidating(null);
     }
   };
-  
-  // Adicionar função para recarregar as chaves
-  const loadApiKeys = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/api-keys');
-      
-      if (!response.ok) {
-        throw new Error('Falha ao carregar chaves API');
-      }
-      
-      const data = await response.json();
-      setApiKeys(data);
-    } catch (error) {
-      console.error('Erro ao carregar chaves API:', error);
-      toast.error('Não foi possível carregar suas chaves API.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const [validating, setValidating] = useState<string | null>(null);
-
-  const onSubmit = async (data: ApiKeyFormValues) => {
-    setIsLoading(true);
-    
-    try {
-      // Convertemos as permissões do objeto para array
-      const permissionsArray = Object.entries(data.permissions)
-        .filter(([_, value]) => value)
-        .map(([key]) => key);
-      
-      const apiKeyData = {
-        name: data.name,
-        exchange: data.exchange,
-        apiKey: data.apiKey,
-        apiSecret: data.apiSecret,
-        permissions: permissionsArray,
-      };
-      
-      const response = await fetch('/api/api-keys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiKeyData),
-      });
-      
-      // Se o status for 409 Conflict, isso significa que já existe uma chave para essa exchange
-      if (response.status === 409) {
-        const errorData = await response.json();
-        toast.error(errorData.error);
-        return;
-      }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao salvar chave API');
-      }
-      
-      toast.success('Chave API adicionada com sucesso!');
-      router.push('/dashboard/api-keys');
-    } catch (error) {
-      console.error('Erro ao salvar chave API:', error);
-      toast.error('Ocorreu um erro ao salvar a chave API. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  }; 
 
   return (
     <div className="space-y-6">
@@ -258,7 +251,6 @@ export default function ApiKeysPage() {
                         </div>
                       </div>
                       <div className="font-mono text-sm px-2 py-1.5 bg-white rounded border border-gray-200 overflow-x-auto">
-                        {/* Mostrar apenas os 10 primeiros caracteres seguidos por pontos */}
                         {apiKey.apiKey.substring(0, 10)}•••••••••••••••••••••••
                       </div>
                     </div>
@@ -273,44 +265,12 @@ export default function ApiKeysPage() {
                     </div>
                   </div>
                 </div>
+                
                 <div>
                   <h4 className="text-xs font-medium text-gray-500 mb-2">Permissões</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                      Leitura
-                    </Badge>
-                    
-                    {apiKey.permissions.includes('SPOT') && (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                        Spot Trading
-                      </Badge>
-                    )}
-                    
-                    {apiKey.permissions.includes('MARGIN') && (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                        Margin Trading
-                      </Badge>
-                    )}
-                    
-                    {apiKey.permissions.includes('MARGIN_LOAN') && (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                        Empréstimo de Margem
-                      </Badge>
-                    )}
-                    
-                    {apiKey.permissions.includes('TRANSFER') && (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                        Transferência
-                      </Badge>
-                    )}
-                    
-                    {apiKey.permissions.includes('WITHDRAW') && (
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-                        Saques
-                      </Badge>
-                    )}
-                  </div>
+                  <PermissionBadges permissions={apiKey.permissions} />
                 </div>
+                
                 <div className="pt-3 border-t border-gray-100 flex flex-wrap justify-between items-center gap-2">
                   <div className="text-xs text-gray-500 whitespace-nowrap">
                     Criada em {new Date(apiKey.createdAt).toLocaleDateString()}
@@ -352,7 +312,6 @@ export default function ApiKeysPage() {
                 </div>
               </CardContent>
             </Card>
-
           ))}
         </div>
       )}

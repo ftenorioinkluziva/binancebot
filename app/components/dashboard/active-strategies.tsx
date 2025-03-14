@@ -1,65 +1,67 @@
 // components/dashboard/active-strategies.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Play, Pause, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Play, Pause, ChevronRight, AlertTriangle, Clock, TrendingUp, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
+import { StrategyOverview } from '@/app/lib/services/dashboard-service';
 
-type Strategy = {
-  id: string;
-  name: string;
-  type: string;
-  active: boolean;
-  lastRun: string;
-  performance: number;
-  symbol: string;
-};
+interface ActiveStrategiesProps {
+  strategies: StrategyOverview[];
+  isLoading: boolean;
+  isToggling?: boolean;
+  onToggleStrategy?: (id: string) => Promise<void>;
+}
 
-export function ActiveStrategies() {
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Simulação de carregamento de dados
-  useEffect(() => {
-    // Em um caso real, você buscaria esses dados da API
-    setTimeout(() => {
-      setStrategies([
-        { 
-          id: '1', 
-          name: 'DCA Bitcoin', 
-          type: 'DCA',
-          active: true, 
-          lastRun: '2025-03-12T15:30:00Z',
-          performance: 8.5,
-          symbol: 'BTC/USDT'
-        },
-        { 
-          id: '2', 
-          name: 'Bollinger ETH', 
-          type: 'Bollinger Bands',
-          active: true, 
-          lastRun: '2025-03-13T09:15:00Z',
-          performance: 3.7,
-          symbol: 'ETH/USDT'
-        },
-        { 
-          id: '3', 
-          name: 'MA CrossOver SOL', 
-          type: 'Moving Average',
-          active: false, 
-          lastRun: '2025-03-11T22:45:00Z',
-          performance: -2.1,
-          symbol: 'SOL/USDT'
-        },
-      ]);
-      setIsLoading(false);
-    }, 1800);
-  }, []);
+export function ActiveStrategies({ 
+  strategies, 
+  isLoading, 
+  isToggling = false,
+  onToggleStrategy 
+}: ActiveStrategiesProps) {
+  const [updatingStrategyId, setUpdatingStrategyId] = useState<string | null>(null);
 
-  const toggleStrategy = (id: string) => {
-    setStrategies(strategies.map(strategy => 
-      strategy.id === id ? { ...strategy, active: !strategy.active } : strategy
-    ));
+  const handleToggleStrategy = async (id: string) => {
+    if (!onToggleStrategy) return;
+    
+    setUpdatingStrategyId(id);
+    try {
+      await onToggleStrategy(id);
+    } finally {
+      setUpdatingStrategyId(null);
+    }
+  };
+
+  const getLastRunText = (lastRun: string | null) => {
+    if (!lastRun) return 'Nunca executada';
+    
+    const lastRunDate = new Date(lastRun);
+    const now = new Date();
+    const diffMs = now.getTime() - lastRunDate.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 60) {
+      return `Há ${diffMins} minutos`;
+    } else if (diffHours < 24) {
+      return `Há ${diffHours} horas`;
+    } else {
+      return `Há ${diffDays} dias`;
+    }
+  };
+
+  const getStrategyTypeLabel = (type: string) => {
+    switch (type) {
+      case 'DCA':
+        return 'Compra média';
+      case 'BollingerBands':
+        return 'Bandas de Bollinger';
+      case 'MovingAverage':
+        return 'Média Móvel';
+      default:
+        return type;
+    }
   };
 
   return (
@@ -98,40 +100,51 @@ export function ActiveStrategies() {
                   <div>
                     <h4 className="text-sm font-medium text-gray-900">{strategy.name}</h4>
                     <div className="mt-1 flex items-center">
-                      <span className="text-xs text-gray-500 mr-2">{strategy.type}</span>
+                      <span className="text-xs text-gray-500 mr-2">{getStrategyTypeLabel(strategy.type)}</span>
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                         {strategy.symbol}
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => toggleStrategy(strategy.id)}
-                    className={`p-2 rounded-full ${
-                      strategy.active 
-                        ? 'bg-green-100 text-green-600 hover:bg-green-200' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {strategy.active ? (
-                      <Pause className="h-5 w-5" />
-                    ) : (
-                      <Play className="h-5 w-5" />
-                    )}
-                  </button>
+                  {onToggleStrategy && (
+                    <button
+                      onClick={() => handleToggleStrategy(strategy.id)}
+                      disabled={isToggling || updatingStrategyId === strategy.id}
+                      className={`p-2 rounded-full ${
+                        isToggling || updatingStrategyId === strategy.id
+                          ? 'bg-gray-100 text-gray-400'
+                          : strategy.active 
+                            ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {isToggling || updatingStrategyId === strategy.id ? (
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-b-transparent"></div>
+                      ) : strategy.active ? (
+                        <Pause className="h-5 w-5" />
+                      ) : (
+                        <Play className="h-5 w-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-gray-500">Última execução:</span>
                     <div className="font-medium text-gray-900">
-                      {new Date(strategy.lastRun).toLocaleString()}
+                      {getLastRunText(strategy.lastRun)}
                     </div>
                   </div>
                   <div>
                     <span className="text-gray-500">Performance:</span>
                     <div className={`font-medium ${
-                      strategy.performance >= 0 ? 'text-green-600' : 'text-red-600'
+                      strategy.performance && strategy.performance >= 0 
+                        ? 'text-green-600' 
+                        : strategy.performance ? 'text-red-600' : 'text-gray-500'
                     }`}>
-                      {strategy.performance >= 0 ? '+' : ''}{strategy.performance}%
+                      {strategy.performance !== null 
+                        ? `${strategy.performance >= 0 ? '+' : ''}${strategy.performance}%` 
+                        : 'N/A'}
                     </div>
                   </div>
                 </div>

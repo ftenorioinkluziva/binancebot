@@ -14,7 +14,7 @@ import { Label } from '@/app/components/ui/label';
 import { Switch } from '@/app/components/ui/switch';
 import { Badge } from '@/app/components/ui/badge';
 
-// Adicione esta definição de schema:
+// Schema para formulário de edição de API key
 const apiKeyEditSchema = z.object({
   permissions: z.object({
     enableReading: z.boolean().default(true),
@@ -37,17 +37,22 @@ export default function EditApiKeyPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [apiKey, setApiKey] = useState<any>(null);
   
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm<ApiKeyEditFormValues>({
+  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<ApiKeyEditFormValues>({
     resolver: zodResolver(apiKeyEditSchema),
     defaultValues: {
       permissions: {
-        spot: false,
-        margin: false,
-        futures: false,
-        withdraw: false,
+        enableReading: true,
+        enableSpotAndMarginTrading: false,
+        enableMarginLoan: false,
+        enableUniversalTransfer: false,
+        enableWithdraw: false,
+        enableSymbolPermissionList: false,
       },
     },
   });
+  
+  // Watch para o valor de enableSymbolPermissionList
+  const enableSymbolPermission = watch('permissions.enableSymbolPermissionList');
   
   // Carregar os dados da chave API
   useEffect(() => {
@@ -63,9 +68,26 @@ export default function EditApiKeyPage() {
         const data = await response.json();
         setApiKey(data);
         
-        // Definir permissões no formulário
+        // Mapear permissões da API para o formato do formulário
+        const permissionsMap: Record<string, string> = {
+          'READ': 'enableReading',
+          'SPOT': 'enableSpotAndMarginTrading',
+          'MARGIN': 'enableSpotAndMarginTrading',
+          'MARGIN_LOAN': 'enableMarginLoan',
+          'TRANSFER': 'enableUniversalTransfer',
+          'WITHDRAW': 'enableWithdraw',
+        };
+        
+        // Definir valores iniciais do formulário com base nas permissões existentes
+        Object.values(permissionsMap).forEach(formPerm => {
+          setValue(`permissions.${formPerm}`, false);
+        });
+        
+        // Definir permissões que o usuário já tem
         data.permissions.forEach((perm: string) => {
-          setValue(`permissions.${perm}`, true);
+          if (permissionsMap[perm]) {
+            setValue(`permissions.${permissionsMap[perm]}`, true);
+          }
         });
         
       } catch (error) {
@@ -84,15 +106,27 @@ export default function EditApiKeyPage() {
     setIsSaving(true);
     
     try {
-      // Converter permissões de objeto para array
-      const permissionsArray = Object.entries(data.permissions)
-        .filter(([_, value]) => value)
-        .map(([key]) => key);
+      // Converter permissões de objeto para array no formato da API
+      const permissionsMap: Record<string, string[]> = {
+        'enableReading': ['READ'],
+        'enableSpotAndMarginTrading': ['SPOT', 'MARGIN'],
+        'enableMarginLoan': ['MARGIN_LOAN'],
+        'enableUniversalTransfer': ['TRANSFER'],
+        'enableWithdraw': ['WITHDRAW'],
+      };
       
-      if (permissionsArray.length === 0) {
-        toast.error('Selecione pelo menos uma permissão');
-        setIsSaving(false);
-        return;
+      let permissionsArray: string[] = [];
+      
+      // Adicionar permissões habilitadas
+      Object.entries(data.permissions).forEach(([key, value]) => {
+        if (value && permissionsMap[key]) {
+          permissionsArray = [...permissionsArray, ...permissionsMap[key]];
+        }
+      });
+      
+      // A leitura é sempre habilitada
+      if (!permissionsArray.includes('READ')) {
+        permissionsArray.push('READ');
       }
       
       // Enviar apenas as permissões para atualização
@@ -298,7 +332,7 @@ export default function EditApiKeyPage() {
                     <Label htmlFor="enable-symbol-permission" className="cursor-pointer">
                       Ativar Lista de Permissões do Símbolo
                     </Label>
-                    {field.value && (
+                    {enableSymbolPermission && (
                       <Button 
                         variant="outline" 
                         size="sm"
@@ -310,6 +344,19 @@ export default function EditApiKeyPage() {
                       </Button>
                     )}
                   </div>
+                </div>
+                
+                <div className="mt-6 flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={isSaving}
+                  >
+                    {isSaving && (
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+                    )}
+                    <Save className="mr-2 h-4 w-4" />
+                    Salvar Permissões
+                  </Button>
                 </div>
               </div>
             </form>
