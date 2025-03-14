@@ -59,6 +59,10 @@ type DCAStrategy = z.infer<typeof dcaSchema>;
 type BollingerStrategy = z.infer<typeof bollingerSchema>;
 type MAStrategy = z.infer<typeof maSchema>;
 
+// Função para verificar se uma estratégia é do tipo DCA
+const isDCAStrategy = (data: any): data is DCAStrategy => {
+  return data && data.type === 'DCA';
+};
 
 export default function NewStrategyPage() {
   const router = useRouter();
@@ -426,23 +430,23 @@ export default function NewStrategyPage() {
               <div className="bg-blue-50 p-4 rounded-md">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
                 <p className="text-sm text-blue-700">
-                  {isDCAStrategy(strategy) && (
+                  {isDCAStrategy(watchedValues) && (
                     <>
                       Esta estratégia irá comprar 
-                      <span className="font-medium"> {strategy.amount} USDT </span>
-                      de {strategy.symbol || '[selecione um par]'} 
-                      {strategy.frequency === 'daily' && ' todos os dias'}
-                      {strategy.frequency === 'weekly' && ` toda semana às ${
-                        strategy.dayOfWeek === 0 ? 'domingos' :
-                        strategy.dayOfWeek === 1 ? 'segundas-feiras' :
-                        strategy.dayOfWeek === 2 ? 'terças-feiras' :
-                        strategy.dayOfWeek === 3 ? 'quartas-feiras' :
-                        strategy.dayOfWeek === 4 ? 'quintas-feiras' :
-                        strategy.dayOfWeek === 5 ? 'sextas-feiras' :
+                      <span className="font-medium"> {watchedValues.amount} USDT </span>
+                      de {watchedValues.symbol || '[selecione um par]'} 
+                      {watchedValues.frequency === 'daily' && ' todos os dias'}
+                      {watchedValues.frequency === 'weekly' && ` toda semana às ${
+                        watchedValues.dayOfWeek === 0 ? 'domingos' :
+                        watchedValues.dayOfWeek === 1 ? 'segundas-feiras' :
+                        watchedValues.dayOfWeek === 2 ? 'terças-feiras' :
+                        watchedValues.dayOfWeek === 3 ? 'quartas-feiras' :
+                        watchedValues.dayOfWeek === 4 ? 'quintas-feiras' :
+                        watchedValues.dayOfWeek === 5 ? 'sextas-feiras' :
                         'sábados'
                       }`}
-                      {strategy.frequency === 'monthly' && ` todo mês no dia ${strategy.dayOfMonth || 1}`}
-                      {strategy.hour !== undefined && ` às ${strategy.hour.toString().padStart(2, '0')}:00`}.
+                      {watchedValues.frequency === 'monthly' && ` todo mês no dia ${watchedValues.dayOfMonth || 1}`}
+                      {watchedValues.hour !== undefined && ` às ${watchedValues.hour.toString().padStart(2, '0')}:00`}.
                     </>
                   )}
                 </p>
