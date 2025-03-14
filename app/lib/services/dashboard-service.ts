@@ -186,93 +186,115 @@ export class DashboardService {
       return [];
     }
   }
-  
-/**
- * Busca operações recentes para o dashboard
+
+  /**
+ * Busca ordens recentes do usuário
+ * @param apiKeyId ID da chave API
+ * @param userId ID do usuário
+ * @returns Lista de ordens recentes
  */
-static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
+static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
   try {
-    console.log('Buscando operações recentes para usuário:', userId);
+    // Recuperar dados da chave API
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
     
-    // 1. Buscar trades do banco de dados
-    const dbTrades = await prisma.trade.findMany({
-      where: {
-        userId
-      },
-      select: {
-        id: true,
-        symbol: true,
-        side: true,
-        quantity: true,
-        price: true,
-        total: true,
-        createdAt: true,
-        status: true,
-        strategy: {
-          select: {
-            name: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 10 // Buscamos mais para poder combinar com os da API
-    });
+    // Determinar a URL base baseada no tipo de exchange
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
     
-    console.log(`Encontrados ${dbTrades.length} trades no banco de dados`);
-    
-    // 2. Buscar trades recentes da API da Binance
-    const apiTrades = await this.fetchRecentTradesFromBinance(userId);
-    
-    // 3. Combinar os resultados (removendo duplicatas)
-    let allTrades = [
-      ...dbTrades.map(trade => this.mapDbTradeToTradeOverview(trade)),
-      ...apiTrades
-    ];
-    
-    // 4. Remover duplicatas baseado em orderId
-    const uniqueTrades = this.removeDuplicateTrades(allTrades);
-    
-    console.log(`Total de ${uniqueTrades.length} trades únicos após combinação`);
-    
-    // 5. Ordenar por data (mais recentes primeiro) e limitar a 5
-    return uniqueTrades
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 5);
-  } catch (error) {
-    console.error('Erro ao buscar operações recentes:', error);
-    
-    // Em caso de erro, tentar retornar apenas os dados do banco
+    // Tentar buscar apenas as ordens abertas (endpoint sem necessidade do parâmetro symbol)
     try {
-      const fallbackTrades = await prisma.trade.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          symbol: true,
-          side: true,
-          quantity: true,
-          price: true,
-          total: true,
-          createdAt: true,
-          status: true,
-          strategy: {
-            select: {
-              name: true
-            }
-          }
-        }
-      });
+      const openOrders = await this.makeSignedRequest(
+        '/api/v3/openOrders',
+        {},
+        'GET',
+        apiKeyData.apiKey,
+        apiKeyData.apiSecret,
+        baseUrl
+      );
       
-      return fallbackTrades.map(trade => this.mapDbTradeToTradeOverview(trade));
-    } catch (dbError) {
-      console.error('Erro ao buscar trades de fallback do banco:', dbError);
-      return [];
+      if (openOrders && openOrders.length > 0) {
+        return openOrders;
+      }
+    } catch (openOrdersError) {
+      console.log('Aviso: Não foi possível buscar ordens abertas', openOrdersError);
+      // Continuar para outras abordagens
     }
+    
+    // Tentar buscar o histórico de trades do usuário (não necessita do parâmetro symbol)
+    try {
+      const myTrades = await this.makeSignedRequest(
+        '/api/v3/myTrades',
+        {},
+        'GET',
+        apiKeyData.apiKey,
+        apiKeyData.apiSecret,
+        baseUrl
+      );
+      
+      if (myTrades && myTrades.length > 0) {
+        return myTrades;
+      }
+    } catch (myTradesError) {
+      console.log('Aviso: Não foi possível buscar histórico de trades', myTradesError);
+      // Continuar para outras abordagens
+    }
+    
+    // Se as opções anteriores falharam, precisamos da lista de símbolos negociados
+    // para buscar histórico de ordens por símbolo
+    try {
+      // Obter preços para descobrir quais símbolos estão disponíveis
+      const prices = await this.makePublicRequest(
+        '/api/v3/ticker/price',
+        {},
+        baseUrl
+      );
+      
+      // Limitar a quantidade de símbolos para evitar muitas chamadas
+      const symbolsToCheck = prices
+        .filter(p => p.symbol.endsWith('USDT') || p.symbol.endsWith('BTC'))
+        .slice(0, 5) // Verificar apenas os primeiros 5 símbolos populares
+        .map(p => p.symbol);
+      
+      // Array para acumular ordens de diferentes símbolos
+      let allOrders = [];
+      
+      // Buscar ordens para cada símbolo
+      for (const symbol of symbolsToCheck) {
+        try {
+          const orders = await this.makeSignedRequest(
+            '/api/v3/allOrders',
+            { symbol },
+            'GET',
+            apiKeyData.apiKey,
+            apiKeyData.apiSecret,
+            baseUrl
+          );
+          
+          if (orders && orders.length > 0) {
+            allOrders = [...allOrders, ...orders];
+          }
+        } catch (error) {
+          console.log(`Não foi possível buscar ordens para ${symbol}`, error);
+        }
+      }
+      
+      if (allOrders.length > 0) {
+        return allOrders;
+      }
+    } catch (symbolError) {
+      console.log('Erro ao buscar lista de símbolos', symbolError);
+    }
+    
+    // Se todas as tentativas falharem, retorna array vazio
+    return [];
+  } catch (error) {
+    console.error('Erro ao buscar ordens recentes:', error);
+    return [];
   }
 }
+
   /**
    * Retorna dados vazios do dashboard para quando não há dados disponíveis
    */
@@ -474,23 +496,29 @@ static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
     }
   }
   
-  /**
-   * Formata símbolo de par (ex: BTCUSDT para BTC/USDT)
-   */
-  private static formatSymbol(symbol: string): string {
-    // Encontrar o ponto de divisão entre base e quote
-    const quoteAssets = ['USDT', 'BTC', 'ETH', 'BNB', 'BUSD'];
-    
-    for (const quote of quoteAssets) {
-      if (symbol.endsWith(quote)) {
-        const base = symbol.substring(0, symbol.length - quote.length);
-        return `${base}/${quote}`;
-      }
-    }
-    
-    return symbol;
-  }
 /**
+ * Formata símbolo de par (ex: BTCUSDT para BTC/USDT)
+ * Adiciona verificação de valor undefined
+ */
+private static formatSymbol(symbol: string): string {
+  if (!symbol) {
+    return 'Desconhecido';
+  }
+  
+  // Encontrar o ponto de divisão entre base e quote
+  const quoteAssets = ['USDT', 'BTC', 'ETH', 'BNB', 'BUSD', 'USD', 'USDC'];
+  
+  for (const quote of quoteAssets) {
+    if (symbol.endsWith(quote)) {
+      const base = symbol.substring(0, symbol.length - quote.length);
+      return `${base}/${quote}`;
+    }
+  }
+  
+  return symbol;
+}
+
+  /**
  * Busca operações recentes diretamente da API da Binance
  * @param userId ID do usuário
  * @returns Array de operações recentes
@@ -513,22 +541,43 @@ private static async fetchRecentTradesFromBinance(userId: string): Promise<Trade
     
     console.log(`Encontradas ${recentOrders.length} ordens recentes na Binance`);
     
-    // 3. Mapear para o formato TradeOverview
-    const trades = recentOrders
-      .filter(order => order.status === 'FILLED') // Apenas ordens executadas
-      .map(order => ({
-        id: order.orderId.toString(),
-        symbol: this.formatSymbol(order.symbol), // Converter BTCUSDT para BTC/USDT
-        side: order.side as 'BUY' | 'SELL',
-        quantity: parseFloat(order.executedQty),
-        price: parseFloat(order.price),
-        total: parseFloat(order.executedQty) * parseFloat(order.price),
-        timestamp: new Date(order.time).toISOString(),
-        strategy: 'Manual', // Ordens da API são consideradas manuais
-        status: 'FILLED'
-      }));
+    // 3. Verificar o formato da resposta e mapear para o formato TradeOverview
+    if (recentOrders.length > 0) {
+      // Verificar se a resposta é do endpoint allOrders ou openOrders
+      if ('orderId' in recentOrders[0]) {
+        // Formato de ordens
+        return recentOrders
+          .filter(order => order.status === 'FILLED') // Apenas ordens executadas
+          .map(order => ({
+            id: order.orderId.toString(),
+            symbol: this.formatSymbol(order.symbol), // Converter BTCUSDT para BTC/USDT
+            side: order.side as 'BUY' | 'SELL',
+            quantity: parseFloat(order.executedQty || order.origQty),
+            price: parseFloat(order.price),
+            total: parseFloat(order.executedQty || order.origQty) * parseFloat(order.price),
+            timestamp: new Date(order.time || order.updateTime).toISOString(),
+            strategy: 'Manual', // Ordens da API são consideradas manuais
+            status: order.status
+          }));
+      } 
+      // Verificar se a resposta é do endpoint myTrades
+      else if ('id' in recentOrders[0] && 'isBuyer' in recentOrders[0]) {
+        // Formato de trades
+        return recentOrders.map(trade => ({
+          id: trade.id.toString(),
+          symbol: this.formatSymbol(trade.symbol),
+          side: trade.isBuyer ? 'BUY' : 'SELL',
+          quantity: parseFloat(trade.qty),
+          price: parseFloat(trade.price),
+          total: parseFloat(trade.quoteQty),
+          timestamp: new Date(trade.time).toISOString(),
+          strategy: 'Manual',
+          status: 'FILLED'
+        }));
+      }
+    }
     
-    return trades;
+    return [];
   } catch (error) {
     console.error('Erro ao buscar ordens recentes da Binance:', error);
     return [];
@@ -575,5 +624,72 @@ private static mapDbTradeToTradeOverview(trade: any): TradeOverview {
     status: trade.status
   };
 }
+
+/**
+ * Gera dados de portfólio de exemplo para testes
+ */
+private static generateMockPortfolioData(): AssetBalance[] {
+  return [
+    {
+      symbol: 'BTC',
+      value: 6542.87,
+      percentage: 42.54,
+      color: '#F7931A',
+      quantity: 0.1521,
+      pricePerUnit: 43015.58
+    },
+    {
+      symbol: 'ETH',
+      value: 2985.34,
+      percentage: 23.67,
+      color: '#627EEA',
+      quantity: 0.8521,
+      pricePerUnit: 3503.45
+    },
+    {
+      symbol: 'BNB',
+      value: 1685.21,
+      percentage: 13.43,
+      color: '#F3BA2F',
+      quantity: 4.2154,
+      pricePerUnit: 399.77
+    },
+    {
+      symbol: 'SOL',
+      value: 754.92,
+      percentage: 6.06,
+      color: '#00FFA3',
+      quantity: 7.4523,
+      pricePerUnit: 101.30
+    },
+    {
+      symbol: 'USDT',
+      value: 484.94,
+      percentage: 3.89,
+      color: '#26A17B',
+      quantity: 484.94,
+      pricePerUnit: 1.00
+    }
+  ];
+}
+
+/**
+ * Use este método quando não conseguir obter dados reais
+ */
+private static getFallbackPortfolioData(): AssetBalance[] {
+  // Verificar se estamos em ambiente de desenvolvimento
+  const isDev = process.env.NODE_ENV === 'development';
+  
+  // Em desenvolvimento ou se configurado, retorna dados de exemplo
+  if (isDev || process.env.USE_MOCK_DATA === 'true') {
+    return this.generateMockPortfolioData();
+  }
+  
+  // Em produção sem dados, retorna array vazio
+  return [];
+}
+
+
+
 
 }
