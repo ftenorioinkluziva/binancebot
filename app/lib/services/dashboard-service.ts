@@ -185,9 +185,6 @@ export class DashboardService {
     }
   }
 
-/**
-   * Busca operações recentes para o dashboard
-   */
 static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
   try {
     console.log('Buscando operações recentes para usuário:', userId);
@@ -245,11 +242,7 @@ static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 5);
     
-    // 6. Se não encontramos nenhum trade (banco ou API), gerar dados de fallback para interface
-    if (sortedTrades.length === 0) {
-      return this.generateMockTrades();
-    }
-    
+    // 6. Retornar os trades ordenados, mesmo que seja um array vazio
     return sortedTrades;
   } catch (error) {
     console.error('Erro ao buscar operações recentes:', error);
@@ -280,15 +273,14 @@ static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
       if (fallbackTrades.length > 0) {
         return fallbackTrades.map(trade => this.mapDbTradeToTradeOverview(trade));
       }
-      
-
     } catch (dbError) {
       console.error('Erro ao buscar trades de fallback do banco:', dbError);
-
     }
+    
+    // Se chegou aqui, todos os métodos falharam, retornar um array vazio
+    return [];
   }
 }
-
   /**
    * Busca dados de mercado para pares importantes
    */
@@ -477,151 +469,108 @@ static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
     }
   }
 
-/**
- * Busca operações recentes diretamente da API da Binance
- * @param userId ID do usuário
- * @returns Array de operações recentes
- */
-private static async fetchRecentTradesFromBinance(userId: string): Promise<TradeOverview[]> {
-  try {
-    // 1. Verificar se o usuário tem uma chave API ativa
-    const apiKeys = await ApiKeyService.getApiKeys(userId);
-    
-    if (!apiKeys || apiKeys.length === 0) {
-      console.log('Nenhuma chave API encontrada para o usuário:', userId);
-      return [];
-    }
-    
-    // Usar a primeira chave API encontrada
-    const apiKeyId = apiKeys[0].id!;
-    
+  private static async fetchRecentTradesFromBinance(userId: string): Promise<TradeOverview[]> {
     try {
-      // 2. Buscar histórico de ordens da Binance
-      console.log('Buscando ordens recentes da Binance...');
-      const recentOrders = await BinanceService.getRecentOrders(apiKeyId, userId);
+      // 1. Verificar se o usuário tem uma chave API ativa
+      const apiKeys = await ApiKeyService.getApiKeys(userId);
       
-      console.log(`Encontradas ${recentOrders.length} ordens/trades recentes na Binance`);
-      
-      // 3. Verificar o formato da resposta e mapear para o formato TradeOverview
-      if (recentOrders.length > 0) {
-        // Fazer log dos primeiros itens para diagnóstico
-        console.log('Primeiros itens recebidos:', 
-          JSON.stringify(recentOrders.slice(0, 2), null, 2));
-        
-        // Verificar o formato baseado nas propriedades presentes
-        const sampleItem = recentOrders[0];
-        
-        // Verificar se temos ordens (allOrders, openOrders)
-        if ('orderId' in sampleItem) {
-          console.log('Dados no formato de ordens');
-          // Formato de ordens
-          return recentOrders
-            .filter(order => order.status === 'FILLED') // Apenas ordens executadas
-            .map(order => ({
-              id: order.orderId.toString(),
-              symbol: this.formatSymbol(order.symbol), // Converter BTCUSDT para BTC/USDT
-              side: order.side as 'BUY' | 'SELL',
-              quantity: parseFloat(order.executedQty || order.origQty),
-              price: parseFloat(order.price) || 0,
-              total: parseFloat(order.cummulativeQuoteQty) || 
-                (parseFloat(order.executedQty || order.origQty) * parseFloat(order.price || '0')),
-              timestamp: new Date(order.time || order.updateTime).toISOString(),
-              strategy: 'Manual', // Ordens da API são consideradas manuais
-              status: order.status
-            }));
-        } 
-        // Verificar se temos trades (myTrades)
-        else if ('id' in sampleItem && ('isBuyer' in sampleItem || 'isMaker' in sampleItem)) {
-          console.log('Dados no formato de trades');
-          // Formato de trades
-          return recentOrders.map(trade => ({
-            id: trade.id.toString(),
-            symbol: this.formatSymbol(trade.symbol),
-            side: trade.isBuyer ? 'BUY' : 'SELL',
-            quantity: parseFloat(trade.qty),
-            price: parseFloat(trade.price),
-            total: parseFloat(trade.quoteQty),
-            timestamp: new Date(trade.time).toISOString(),
-            strategy: 'Manual',
-            status: 'FILLED'
-          }));
-        } else {
-          console.log('Formato de dados não reconhecido:', Object.keys(sampleItem).join(', '));
-          
-          // Tentar um formato genérico, extraindo o que conseguimos
-          return recentOrders.map((item, index) => {
-            const id = item.id || item.orderId || item.tradeId || `unknown-${index}`;
-            const symbol = item.symbol ? this.formatSymbol(item.symbol) : 'Desconhecido';
-            const side = item.side || (item.isBuyer ? 'BUY' : 'SELL') || 'Desconhecido';
-            const quantity = parseFloat(item.qty || item.executedQty || item.origQty || '0');
-            const price = parseFloat(item.price || '0');
-            const total = parseFloat(item.quoteQty || item.cummulativeQuoteQty || '0') || (quantity * price);
-            const timestamp = new Date(item.time || item.updateTime || Date.now()).toISOString();
-            
-            return {
-              id: id.toString(),
-              symbol,
-              side: side as 'BUY' | 'SELL',
-              quantity,
-              price,
-              total,
-              timestamp,
-              strategy: 'Manual',
-              status: item.status || 'FILLED'
-            };
-          });
-        }
+      if (!apiKeys || apiKeys.length === 0) {
+        console.log('Nenhuma chave API encontrada para o usuário:', userId);
+        return [];
       }
       
-      return [];
-    } catch (apiError) {
-      console.error('Erro ao buscar dados da API Binance:', apiError);
+      // Usar a primeira chave API encontrada
+      const apiKeyId = apiKeys[0].id!;
       
-      // Criar pelo menos um exemplo de operação para mostrar na interface
-      // Usando dados reais de mercado, se disponíveis
       try {
-        const mockTrades: TradeOverview[] = [];
+        // 2. Buscar histórico de ordens da Binance
+        console.log('Buscando ordens recentes da Binance...');
+        const recentOrders = await BinanceService.getRecentOrders(apiKeyId, userId);
         
-        // Tentar obter preço do BTC
-        const btcPrice = await BinanceService.makePublicRequest(
-          '/api/v3/ticker/price',
-          { symbol: 'BTCUSDT' },
-          'https://api.binance.com'
-        );
+        console.log(`Encontradas ${recentOrders.length} ordens/trades recentes na Binance`);
         
-        if (btcPrice && btcPrice.price) {
-          const price = parseFloat(btcPrice.price);
+        // 3. Verificar o formato da resposta e mapear para o formato TradeOverview
+        if (recentOrders.length > 0) {
+          // Fazer log dos primeiros itens para diagnóstico
+          console.log('Primeiros itens recebidos:', 
+            JSON.stringify(recentOrders.slice(0, 2), null, 2));
           
-          // Criar um exemplo de operação de compra recente
-          mockTrades.push({
-            id: 'example-1',
-            symbol: 'BTC/USDT',
-            side: 'BUY',
-            quantity: 0.01,
-            price: price,
-            total: price * 0.01,
-            timestamp: new Date().toISOString(),
-            strategy: 'Manual (Exemplo)',
-            status: 'FILLED'
-          });
+          // Verificar o formato baseado nas propriedades presentes
+          const sampleItem = recentOrders[0];
           
-          console.log('Criado trade de exemplo com preço atual de BTC:', price);
+          // Verificar se temos ordens (allOrders, openOrders)
+          if ('orderId' in sampleItem) {
+            console.log('Dados no formato de ordens');
+            // Formato de ordens
+            return recentOrders
+              .filter(order => order.status === 'FILLED') // Apenas ordens executadas
+              .map(order => ({
+                id: order.orderId.toString(),
+                symbol: this.formatSymbol(order.symbol), // Converter BTCUSDT para BTC/USDT
+                side: order.side as 'BUY' | 'SELL',
+                quantity: parseFloat(order.executedQty || order.origQty),
+                price: parseFloat(order.price) || 0,
+                total: parseFloat(order.cummulativeQuoteQty) || 
+                  (parseFloat(order.executedQty || order.origQty) * parseFloat(order.price || '0')),
+                timestamp: new Date(order.time || order.updateTime).toISOString(),
+                strategy: 'Manual', // Ordens da API são consideradas manuais
+                status: order.status
+              }));
+          } 
+          // Verificar se temos trades (myTrades)
+          else if ('id' in sampleItem && ('isBuyer' in sampleItem || 'isMaker' in sampleItem)) {
+            console.log('Dados no formato de trades');
+            // Formato de trades
+            return recentOrders.map(trade => ({
+              id: trade.id.toString(),
+              symbol: this.formatSymbol(trade.symbol),
+              side: trade.isBuyer ? 'BUY' : 'SELL',
+              quantity: parseFloat(trade.qty),
+              price: parseFloat(trade.price),
+              total: parseFloat(trade.quoteQty),
+              timestamp: new Date(trade.time).toISOString(),
+              strategy: 'Manual',
+              status: 'FILLED'
+            }));
+          } else {
+            console.log('Formato de dados não reconhecido:', Object.keys(sampleItem).join(', '));
+            
+            // Tentar um formato genérico, extraindo o que conseguimos
+            return recentOrders.map((item, index) => {
+              const id = item.id || item.orderId || item.tradeId || `unknown-${index}`;
+              const symbol = item.symbol ? this.formatSymbol(item.symbol) : 'Desconhecido';
+              const side = item.side || (item.isBuyer ? 'BUY' : 'SELL') || 'Desconhecido';
+              const quantity = parseFloat(item.qty || item.executedQty || item.origQty || '0');
+              const price = parseFloat(item.price || '0');
+              const total = parseFloat(item.quoteQty || item.cummulativeQuoteQty || '0') || (quantity * price);
+              const timestamp = new Date(item.time || item.updateTime || Date.now()).toISOString();
+              
+              return {
+                id: id.toString(),
+                symbol,
+                side: side as 'BUY' | 'SELL',
+                quantity,
+                price,
+                total,
+                timestamp,
+                strategy: 'Manual',
+                status: item.status || 'FILLED'
+              };
+            });
+          }
         }
         
-        if (mockTrades.length > 0) {
-          return mockTrades;
-        }
-      } catch (mockError) {
-        console.log('Não foi possível criar trades de exemplo:', mockError);
+        return [];
+      } catch (apiError) {
+        console.error('Erro ao buscar dados da API Binance:', apiError);
+        return [];
       }
-      
+    } catch (error) {
+      console.error('Erro ao buscar operações recentes:', error);
       return [];
     }
-  } catch (error) {
-    console.error('Erro ao buscar operações recentes:', error);
-    return [];
   }
-}
+  
   /**
    * Remove trades duplicados baseado no ID da ordem
    * @param trades Lista de trades que pode conter duplicatas

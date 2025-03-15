@@ -95,3 +95,21 @@ model Trade {
   updatedAt   DateTime @updatedAt
   strategy    Strategy? @relation(fields: [strategyId], references: [id])
 }
+
+model TradingPair {
+  id        String   @id @default(cuid())
+  userId    String
+  symbol    String   // Ex: BTCUSDT
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+}
+
+// No modelo User, adicionar a relação reversa
+model User {
+  // ... outras fields existentes
+  tradingPairs TradingPair[]
+}

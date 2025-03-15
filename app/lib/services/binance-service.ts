@@ -2,6 +2,7 @@
 //import Binance from 'node-binance-api';
 //import { EncryptionService } from './encryption-service';
 import { ApiKeyService } from './api-key-service';
+import { DashboardService } from './dashboard-service';
 
 export class BinanceService {
 
@@ -718,12 +719,6 @@ static async get24hMarketData(apiKeyId: string, userId: string): Promise<any[]> 
   }
 }
 
-/**
- * Busca todos os trades do usuário usando o endpoint específico para histórico de trades
- * @param apiKeyId ID da chave API
- * @param userId ID do usuário
- * @returns Lista de trades do usuário
- */
 static async getUserTradesHistory(apiKeyId: string, userId: string): Promise<any[]> {
   try {
     // Recuperar dados da chave API
@@ -731,57 +726,95 @@ static async getUserTradesHistory(apiKeyId: string, userId: string): Promise<any
     
     // Determinar a URL base baseada no tipo de exchange
     const baseUrl = apiKeyData.exchange === 'binance_us' 
-      ? 'https://www.binance.us' 
-      : 'https://www.binance.com';
-    
-    // Buscar todas as ordens dos últimos 30 dias
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    
-    // Estrutura do payload baseada nas imagens fornecidas
-    const payload = {
-      page: 1,
-      rows: 15,
-      startTime: thirtyDaysAgo,
-      endTime: Date.now(),
-      direction: "",
-      baseAsset: "",
-      quoteAsset: "",
-      hideCanceled: false,
-      queryTimeType: "INSERT_TIME"
-    };
-    
-    // Fazer solicitação HTTP para o endpoint de histórico de trades
-    try {
-      const response = await fetch(`${baseUrl}/bapi/capital/v1/private/streamer/trade/get-user-trades`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-MBX-APIKEY': apiKeyData.apiKey
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Erro na API da Binance: ${errorData.message || response.statusText}`);
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
+
+    // Buscar pares de trading ativos do usuário
+    const tradingPairs = await prisma.tradingPair.findMany({
+      where: { 
+        userId,
+        active: true 
+      },
+      select: { symbol: true }
+    });
+
+    // Se não houver pares configurados, usar lista padrão
+    const symbolsToFetch = tradingPairs.length > 0 
+      ? tradingPairs.map(pair => pair.symbol)
+      : [
+        'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 
+        'ADAUSDT', 'XRPUSDT', 'DOGEUSDT', 
+        'SOLUSDT', 'MATICUSDT', 'DOTUSDT',
+        'LTCUSDT', 'LINKUSDT'
+      ];
+
+    // Array para armazenar todos os trades
+    let allTrades: any[] = [];
+
+    // Buscar trades para cada símbolo
+    for (const symbol of symbolsToFetch) {
+      try {
+        // Parâmetros para a requisição de trades
+        const params = new URLSearchParams({
+          symbol,
+          limit: '50', // Limite de 50 trades por símbolo
+          timestamp: Date.now().toString()
+        });
+
+        // Gerar a signature
+        const signature = await this.createSignature(params.toString(), apiKeyData.apiSecret);
+        params.append('signature', signature);
+
+        // URL completa com parâmetros
+        const url = `${baseUrl}/api/v3/myTrades?${params.toString()}`;
+
+        // Fazer a requisição
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'X-MBX-APIKEY': apiKeyData.apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Verificar resposta
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error(`Erro ao buscar trades para ${symbol}:`, {
+            status: response.status,
+            statusText: response.statusText,
+            errorMessage: errorData.msg || 'Erro desconhecido'
+          });
+          continue; // Pular para o próximo símbolo
+        }
+
+        const trades = await response.json();
+        
+        // Mapear trades para o formato desejado
+        const formattedTrades = trades.map(trade => ({
+          id: trade.id.toString(),
+          symbol: DashboardService.formatSymbol(trade.symbol),
+          side: trade.isBuyer ? 'BUY' : 'SELL',
+          quantity: parseFloat(trade.qty),
+          price: parseFloat(trade.price),
+          total: parseFloat(trade.quoteQty),
+          timestamp: new Date(trade.time).toISOString(),
+          strategy: 'Manual',
+          status: 'FILLED'
+        }));
+
+        // Adicionar trades ao array total
+        allTrades.push(...formattedTrades);
+
+      } catch (symbolError) {
+        console.error(`Erro ao processar trades para ${symbol}:`, symbolError);
       }
-      
-      const data = await response.json();
-      
-      // Validar a estrutura da resposta
-      if (data && data.success && Array.isArray(data.data)) {
-        console.log(`Encontrados ${data.data.length} trades no histórico de usuário`);
-        return data.data;
-      } else {
-        console.log('Resposta da API não contém dados de trades válidos:', data);
-        return [];
-      }
-    } catch (error) {
-      console.error('Erro ao buscar histórico de trades:', error);
-      throw error;
     }
+
+    return allTrades;
+
   } catch (error) {
-    console.error('Erro no getUserTradesHistory:', error);
+    console.error('Erro ao buscar histórico de trades:', error);
     return [];
   }
 }

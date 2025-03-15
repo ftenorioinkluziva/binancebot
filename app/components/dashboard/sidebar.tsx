@@ -26,6 +26,7 @@ export default function Sidebar() {
     { name: 'Portfólio', href: '/dashboard/portfolio', icon: PieChart },
     { name: 'Estratégias', href: '/dashboard/strategies', icon: Activity },
     { name: 'Mercado', href: '/dashboard/market', icon: TrendingUp },
+    { name: 'Pares de Trading', href: '/dashboard/trading-pairs', icon: Database }, // Novo item
     { name: 'Compra Recorrente', href: '/dashboard/recurring', icon: Repeat },
     { name: 'Opções', href: '/dashboard/options', icon: BarChart2 },
     { name: 'Transferências', href: '/dashboard/transfers', icon: ArrowRightLeft },
