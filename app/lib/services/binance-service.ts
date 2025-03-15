@@ -4,14 +4,26 @@
 import { ApiKeyService } from './api-key-service';
 
 export class BinanceService {
-  private static async makeSignedRequest(
-    endpoint: string,
-    params: any = {},
-    method: 'GET' | 'POST' | 'DELETE' = 'GET',
-    apiKey: string,
-    apiSecret: string,
-    baseUrl: string = 'https://api.binance.com'
-  ) {
+
+/**
+ * Faz uma requisição assinada para a API da Binance
+ * @param endpoint Endpoint da API
+ * @param params Parâmetros da requisição
+ * @param method Método HTTP
+ * @param apiKey Chave da API
+ * @param apiSecret Segredo da API
+ * @param baseUrl URL base da API
+ * @returns Resultado da requisição em formato JSON
+ */
+private static async makeSignedRequest(
+  endpoint: string,
+  params: any = {},
+  method: 'GET' | 'POST' | 'DELETE' = 'GET',
+  apiKey: string,
+  apiSecret: string,
+  baseUrl: string = 'https://api.binance.com'
+) {
+  try {
     // Adicionar timestamp necessário para assinatura
     const timestamp = Date.now();
     const queryParams = new URLSearchParams({
@@ -19,12 +31,24 @@ export class BinanceService {
       timestamp: timestamp.toString()
     });
     
+    // Verificar parâmetros obrigatórios com base no endpoint
+    if (endpoint === '/api/v3/allOrders' && !params.symbol) {
+      throw new Error('O parâmetro "symbol" é obrigatório para o endpoint allOrders');
+    }
+    
+    if (endpoint === '/api/v3/myTrades' && !params.symbol) {
+      throw new Error('O parâmetro "symbol" é obrigatório para o endpoint myTrades');
+    }
+    
     // Criar assinatura HMAC
     const signature = await this.createSignature(queryParams.toString(), apiSecret);
     queryParams.append('signature', signature);
     
     // Construir URL
     const url = `${baseUrl}${endpoint}?${queryParams.toString()}`;
+    
+    // Log para debug
+    console.log(`Fazendo requisição ${method} para ${endpoint} com parâmetros:`, params);
     
     // Fazer a requisição
     const response = await fetch(url, {
@@ -35,13 +59,40 @@ export class BinanceService {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.msg || 'Erro na API da Binance');
+      const errorData = await response.json();
+      const errorMsg = errorData.msg || 'Erro desconhecido na API da Binance';
+      const errorCode = errorData.code || 'desconhecido';
+      
+      console.error(`Erro na API da Binance: Código ${errorCode} - ${errorMsg}`);
+      
+      // Fornecer mensagens de erro mais amigáveis para códigos comuns
+      let enhancedErrorMsg = errorMsg;
+      
+      switch (errorCode) {
+        case -2013:
+          enhancedErrorMsg = 'Conta não encontrada, verifique suas credenciais de API';
+          break;
+        case -2015:
+          enhancedErrorMsg = 'Chave da API inválida, permissão rejeitada';
+          break;
+        case -1022:
+          enhancedErrorMsg = 'Assinatura inválida, verifique sua chave secreta';
+          break;
+        case -1121:
+          enhancedErrorMsg = 'Símbolo inválido, verifique o parâmetro symbol';
+          break;
+      }
+      
+      throw new Error(`Erro ${errorCode}: ${enhancedErrorMsg}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    // Repassar o erro para ser tratado pelo chamador
+    throw error;
   }
-  
+}
   private static async makePublicRequest(
     endpoint: string,
     params: any = {},
