@@ -185,18 +185,81 @@ export class DashboardService {
     }
   }
 
-  /**
+/**
    * Busca operações recentes para o dashboard
    */
-  static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
+static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
+  try {
+    console.log('Buscando operações recentes para usuário:', userId);
+    
+    // 1. Buscar trades do banco de dados
+    const dbTrades = await prisma.trade.findMany({
+      where: {
+        userId
+      },
+      select: {
+        id: true,
+        symbol: true,
+        side: true,
+        quantity: true,
+        price: true,
+        total: true,
+        createdAt: true,
+        status: true,
+        strategy: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 10 // Buscamos mais para poder combinar com os da API
+    });
+    
+    console.log(`Encontrados ${dbTrades.length} trades no banco de dados`);
+    
+    // 2. Buscar trades recentes da API da Binance
+    // Envolver em um try/catch para não interromper o fluxo se a API falhar
+    let apiTrades = [];
     try {
-      console.log('Buscando operações recentes para usuário:', userId);
-      
-      // 1. Buscar trades do banco de dados
-      const dbTrades = await prisma.trade.findMany({
-        where: {
-          userId
-        },
+      apiTrades = await this.fetchRecentTradesFromBinance(userId);
+    } catch (apiError) {
+      console.log("Erro ao buscar trades da API da Binance, continuando apenas com trades do banco:", apiError.message);
+    }
+    
+    // 3. Combinar os resultados (removendo duplicatas)
+    let allTrades = [
+      ...dbTrades.map(trade => this.mapDbTradeToTradeOverview(trade)),
+      ...apiTrades
+    ];
+    
+    // 4. Remover duplicatas baseado em orderId
+    const uniqueTrades = this.removeDuplicateTrades(allTrades);
+    
+    console.log(`Total de ${uniqueTrades.length} trades únicos após combinação`);
+    
+    // 5. Ordenar por data (mais recentes primeiro) e limitar a 5
+    const sortedTrades = uniqueTrades
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 5);
+    
+    // 6. Se não encontramos nenhum trade (banco ou API), gerar dados de fallback para interface
+    if (sortedTrades.length === 0) {
+      return this.generateMockTrades();
+    }
+    
+    return sortedTrades;
+  } catch (error) {
+    console.error('Erro ao buscar operações recentes:', error);
+    
+    // Em caso de erro, tentar retornar apenas os dados do banco
+    try {
+      const fallbackTrades = await prisma.trade.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
         select: {
           id: true,
           symbol: true,
@@ -211,67 +274,92 @@ export class DashboardService {
               name: true
             }
           }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        take: 10 // Buscamos mais para poder combinar com os da API
+        }
       });
       
-      console.log(`Encontrados ${dbTrades.length} trades no banco de dados`);
-      
-      // 2. Buscar trades recentes da API da Binance
-      const apiTrades = await this.fetchRecentTradesFromBinance(userId);
-      
-      // 3. Combinar os resultados (removendo duplicatas)
-      let allTrades = [
-        ...dbTrades.map(trade => this.mapDbTradeToTradeOverview(trade)),
-        ...apiTrades
-      ];
-      
-      // 4. Remover duplicatas baseado em orderId
-      const uniqueTrades = this.removeDuplicateTrades(allTrades);
-      
-      console.log(`Total de ${uniqueTrades.length} trades únicos após combinação`);
-      
-      // 5. Ordenar por data (mais recentes primeiro) e limitar a 5
-      return uniqueTrades
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-        .slice(0, 5);
-    } catch (error) {
-      console.error('Erro ao buscar operações recentes:', error);
-      
-      // Em caso de erro, tentar retornar apenas os dados do banco
-      try {
-        const fallbackTrades = await prisma.trade.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          select: {
-            id: true,
-            symbol: true,
-            side: true,
-            quantity: true,
-            price: true,
-            total: true,
-            createdAt: true,
-            status: true,
-            strategy: {
-              select: {
-                name: true
-              }
-            }
-          }
-        });
-        
+      if (fallbackTrades.length > 0) {
         return fallbackTrades.map(trade => this.mapDbTradeToTradeOverview(trade));
-      } catch (dbError) {
-        console.error('Erro ao buscar trades de fallback do banco:', dbError);
-        return [];
       }
+      
+      // Se não encontramos nada no banco, gerar dados de exemplo
+      return this.generateMockTrades();
+    } catch (dbError) {
+      console.error('Erro ao buscar trades de fallback do banco:', dbError);
+      return this.generateMockTrades();
     }
   }
+}
 
+/**
+ * Gera operações de exemplo para o dashboard quando não há dados reais
+ */
+private static generateMockTrades(): TradeOverview[] {
+  // Verificar ambiente - apenas gerar mock data em desenvolvimento
+  if (process.env.NODE_ENV !== 'development' && process.env.USE_MOCK_DATA !== 'true') {
+    return [];
+  }
+  
+  // Data base para operações (data atual menos alguns dias/horas)
+  const now = new Date();
+  
+  return [
+    {
+      id: 'mock-1',
+      symbol: 'BTC/USDT',
+      side: 'BUY',
+      quantity: 0.01,
+      price: 43215.50,
+      total: 432.16,
+      timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 horas atrás
+      strategy: 'DCA Automática',
+      status: 'FILLED'
+    },
+    {
+      id: 'mock-2',
+      symbol: 'ETH/USDT',
+      side: 'BUY',
+      quantity: 0.15,
+      price: 3540.25,
+      total: 531.04,
+      timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(), // 12 horas atrás
+      strategy: 'Bandas de Bollinger',
+      status: 'FILLED'
+    },
+    {
+      id: 'mock-3',
+      symbol: 'SOL/USDT',
+      side: 'SELL',
+      quantity: 2.5,
+      price: 104.80,
+      total: 262.00,
+      timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
+      strategy: 'Médias Móveis',
+      status: 'FILLED'
+    },
+    {
+      id: 'mock-4',
+      symbol: 'BNB/USDT',
+      side: 'BUY',
+      quantity: 0.5,
+      price: 398.75,
+      total: 199.38,
+      timestamp: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 dias atrás
+      strategy: 'Manual',
+      status: 'FILLED'
+    },
+    {
+      id: 'mock-5',
+      symbol: 'XRP/USDT',
+      side: 'BUY',
+      quantity: 100,
+      price: 0.52,
+      total: 52.00,
+      timestamp: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 dias atrás
+      strategy: 'DCA Automática',
+      status: 'FILLED'
+    }
+  ];
+}
   /**
    * Gera dados de portfólio de exemplo para testes
    */

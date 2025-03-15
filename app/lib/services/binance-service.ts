@@ -361,7 +361,7 @@ static async getAccountBalance(apiKeyId: string, userId: string): Promise<any> {
         });
         
         // Adicionar alguns stablecoins comuns
-        ['USDT', 'USDC', 'BUSD'].forEach(stablecoin => {
+        ['USDT', 'USDC'].forEach(stablecoin => {
           fallbackBalances[stablecoin] = {
             available: '0',
             onOrder: '0'
@@ -550,64 +550,107 @@ static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
       ? 'https://api.binance.us' 
       : 'https://api.binance.com';
     
+    // Lista de símbolos populares para buscar ordens
+    const popularSymbols = [
+      'BNBBTC', 'BNBETH', 'BNBUSDT', 'SOLBNB', 'ADAUSDT', 
+      'XRPUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT'
+    ];
+    
     // Buscar todas as ordens dos últimos 7 dias
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const params = {
-      startTime: sevenDaysAgo.toString()
+    const baseParams = {
+      startTime: sevenDaysAgo.toString(),
+      limit: 10 // Limitar a 10 ordens por símbolo
     };
     
-    // Buscar histórico de todas as ordens do usuário
-    const allOrders = await this.makeSignedRequest(
-      '/api/v3/allOrders',
-      params,
-      'GET',
-      apiKeyData.apiKey,
-      apiKeyData.apiSecret,
-      baseUrl
-    );
+    // Array para armazenar todas as ordens encontradas
+    let allOrders = [];
     
-    // Se não houver histórico de todas as ordens, tentar buscar apenas ordens recentes
-    if (!allOrders || allOrders.length === 0) {
-      return await this.makeSignedRequest(
-        '/api/v3/myTrades',
-        params,
-        'GET',
-        apiKeyData.apiKey,
-        apiKeyData.apiSecret,
-        baseUrl
-      );
-    }
-    
-    return allOrders;
-  } catch (error) {
-    console.error('Erro ao buscar ordens recentes:', error);
-    
-    // Em caso de erro de permissão, tentar endpoint alternativo
-    if (error.message && error.message.includes('permissions')) {
+    // Buscar ordens para cada símbolo popular
+    for (const symbol of popularSymbols) {
       try {
-        // Recuperar dados da chave API
-        const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+        const params = {
+          ...baseParams,
+          symbol
+        };
         
-        // Determinar a URL base baseada no tipo de exchange
-        const baseUrl = apiKeyData.exchange === 'binance_us' 
-          ? 'https://api.binance.us' 
-          : 'https://api.binance.com';
-        
-        // Tentar buscar apenas as ordens abertas (endpoint com menos restrições)
-        return await this.makeSignedRequest(
-          '/api/v3/openOrders',
-          {},
+        // Tentar buscar histórico de ordens para este símbolo
+        const orders = await this.makeSignedRequest(
+          '/api/v3/allOrders',
+          params,
           'GET',
           apiKeyData.apiKey,
           apiKeyData.apiSecret,
           baseUrl
         );
-      } catch (openOrdersError) {
-        console.error('Erro ao buscar ordens abertas:', openOrdersError);
-        return [];
+        
+        if (orders && orders.length > 0) {
+          allOrders = [...allOrders, ...orders];
+        }
+      } catch (symbolError) {
+        // Ignorar erros para símbolos específicos e continuar com o próximo
+        console.log(`Erro ao buscar ordens para ${symbol}:`, symbolError.message);
       }
     }
     
+    // Se não encontrou nenhuma ordem, tentar buscar trades recentes
+    if (allOrders.length === 0) {
+      let allTrades = [];
+      
+      for (const symbol of popularSymbols) {
+        try {
+          const params = {
+            ...baseParams,
+            symbol
+          };
+          
+          // Buscar trades recentes para este símbolo
+          const trades = await this.makeSignedRequest(
+            '/api/v3/myTrades',
+            params,
+            'GET',
+            apiKeyData.apiKey,
+            apiKeyData.apiSecret,
+            baseUrl
+          );
+          
+          if (trades && trades.length > 0) {
+            allTrades = [...allTrades, ...trades];
+          }
+        } catch (symbolError) {
+          // Ignorar erros para símbolos específicos
+          console.log(`Erro ao buscar trades para ${symbol}:`, symbolError.message);
+        }
+      }
+      
+      if (allTrades.length > 0) {
+        return allTrades;
+      }
+    }
+    
+    // Se encontrou alguma ordem, retornar
+    if (allOrders.length > 0) {
+      return allOrders;
+    }
+    
+    // Se chegou aqui, tentar buscar apenas ordens abertas (endpoint com menos restrições)
+    try {
+      const openOrders = await this.makeSignedRequest(
+        '/api/v3/openOrders',
+        {},
+        'GET',
+        apiKeyData.apiKey,
+        apiKeyData.apiSecret,
+        baseUrl
+      );
+      
+      return openOrders || [];
+    } catch (openOrdersError) {
+      console.error('Erro ao buscar ordens abertas:', openOrdersError);
+      return [];
+    }
+  } catch (error) {
+    console.error('Erro ao buscar ordens recentes:', error);
     return [];
   }
 }
@@ -675,7 +718,72 @@ static async get24hMarketData(apiKeyId: string, userId: string): Promise<any[]> 
   }
 }
 
-
-
+/**
+ * Busca todos os trades do usuário usando o endpoint específico para histórico de trades
+ * @param apiKeyId ID da chave API
+ * @param userId ID do usuário
+ * @returns Lista de trades do usuário
+ */
+static async getUserTradesHistory(apiKeyId: string, userId: string): Promise<any[]> {
+  try {
+    // Recuperar dados da chave API
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+    
+    // Determinar a URL base baseada no tipo de exchange
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://www.binance.us' 
+      : 'https://www.binance.com';
+    
+    // Buscar todas as ordens dos últimos 30 dias
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    
+    // Estrutura do payload baseada nas imagens fornecidas
+    const payload = {
+      page: 1,
+      rows: 15,
+      startTime: thirtyDaysAgo,
+      endTime: Date.now(),
+      direction: "",
+      baseAsset: "",
+      quoteAsset: "",
+      hideCanceled: false,
+      queryTimeType: "INSERT_TIME"
+    };
+    
+    // Fazer solicitação HTTP para o endpoint de histórico de trades
+    try {
+      const response = await fetch(`${baseUrl}/bapi/capital/v1/private/streamer/trade/get-user-trades`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-MBX-APIKEY': apiKeyData.apiKey
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Erro na API da Binance: ${errorData.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Validar a estrutura da resposta
+      if (data && data.success && Array.isArray(data.data)) {
+        console.log(`Encontrados ${data.data.length} trades no histórico de usuário`);
+        return data.data;
+      } else {
+        console.log('Resposta da API não contém dados de trades válidos:', data);
+        return [];
+      }
+    } catch (error) {
+      console.error('Erro ao buscar histórico de trades:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Erro no getUserTradesHistory:', error);
+    return [];
+  }
+}
 
 }
