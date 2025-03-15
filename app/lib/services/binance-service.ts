@@ -552,7 +552,7 @@ static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
     
     // Lista de símbolos populares para buscar ordens
     const popularSymbols = [
-      'BNBBTC', 'BNBETH', 'BNBUSDT', 'SOLBNB', 'ADAUSDT', 
+      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT', 
       'XRPUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT'
     ];
     

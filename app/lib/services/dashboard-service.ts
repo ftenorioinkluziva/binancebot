@@ -82,7 +82,7 @@ export class DashboardService {
           dailyChange: 0,
           totalProfit: 0,
           activeStrategies: 0,
-          portfolio: this.getFallbackPortfolioData(), // Usar dados de exemplo em desenvolvimento
+          portfolio: [], // Sempre retornar array vazio
           marketOverview: []
         };
       }
@@ -134,7 +134,7 @@ export class DashboardService {
           dailyChange: 0,
           totalProfit,
           activeStrategies,
-          portfolio: this.getFallbackPortfolioData(), // Usar dados de exemplo em desenvolvimento
+          portfolio: [], // Usar dados de exemplo em desenvolvimento
           marketOverview: []
         };
       }
@@ -281,148 +281,13 @@ static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
         return fallbackTrades.map(trade => this.mapDbTradeToTradeOverview(trade));
       }
       
-      // Se não encontramos nada no banco, gerar dados de exemplo
-      return this.generateMockTrades();
+
     } catch (dbError) {
       console.error('Erro ao buscar trades de fallback do banco:', dbError);
-      return this.generateMockTrades();
+
     }
   }
 }
-
-/**
- * Gera operações de exemplo para o dashboard quando não há dados reais
- */
-private static generateMockTrades(): TradeOverview[] {
-  // Verificar ambiente - apenas gerar mock data em desenvolvimento
-  if (process.env.NODE_ENV !== 'development' && process.env.USE_MOCK_DATA !== 'true') {
-    return [];
-  }
-  
-  // Data base para operações (data atual menos alguns dias/horas)
-  const now = new Date();
-  
-  return [
-    {
-      id: 'mock-1',
-      symbol: 'BTC/USDT',
-      side: 'BUY',
-      quantity: 0.01,
-      price: 43215.50,
-      total: 432.16,
-      timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 horas atrás
-      strategy: 'DCA Automática',
-      status: 'FILLED'
-    },
-    {
-      id: 'mock-2',
-      symbol: 'ETH/USDT',
-      side: 'BUY',
-      quantity: 0.15,
-      price: 3540.25,
-      total: 531.04,
-      timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(), // 12 horas atrás
-      strategy: 'Bandas de Bollinger',
-      status: 'FILLED'
-    },
-    {
-      id: 'mock-3',
-      symbol: 'SOL/USDT',
-      side: 'SELL',
-      quantity: 2.5,
-      price: 104.80,
-      total: 262.00,
-      timestamp: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(), // 1 dia atrás
-      strategy: 'Médias Móveis',
-      status: 'FILLED'
-    },
-    {
-      id: 'mock-4',
-      symbol: 'BNB/USDT',
-      side: 'BUY',
-      quantity: 0.5,
-      price: 398.75,
-      total: 199.38,
-      timestamp: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 dias atrás
-      strategy: 'Manual',
-      status: 'FILLED'
-    },
-    {
-      id: 'mock-5',
-      symbol: 'XRP/USDT',
-      side: 'BUY',
-      quantity: 100,
-      price: 0.52,
-      total: 52.00,
-      timestamp: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 dias atrás
-      strategy: 'DCA Automática',
-      status: 'FILLED'
-    }
-  ];
-}
-  /**
-   * Gera dados de portfólio de exemplo para testes
-   */
-  private static generateMockPortfolioData(): AssetBalance[] {
-    return [
-      {
-        symbol: 'BTC',
-        value: 6542.87,
-        percentage: 42.54,
-        color: '#F7931A',
-        quantity: 0.1521,
-        pricePerUnit: 43015.58
-      },
-      {
-        symbol: 'ETH',
-        value: 2985.34,
-        percentage: 23.67,
-        color: '#627EEA',
-        quantity: 0.8521,
-        pricePerUnit: 3503.45
-      },
-      {
-        symbol: 'BNB',
-        value: 1685.21,
-        percentage: 13.43,
-        color: '#F3BA2F',
-        quantity: 4.2154,
-        pricePerUnit: 399.77
-      },
-      {
-        symbol: 'SOL',
-        value: 754.92,
-        percentage: 6.06,
-        color: '#00FFA3',
-        quantity: 7.4523,
-        pricePerUnit: 101.30
-      },
-      {
-        symbol: 'USDT',
-        value: 484.94,
-        percentage: 3.89,
-        color: '#26A17B',
-        quantity: 484.94,
-        pricePerUnit: 1.00
-      }
-    ];
-  }
-
-  /**
-   * Use este método quando não conseguir obter dados reais
-   */
-  private static getFallbackPortfolioData(): AssetBalance[] {
-    // Verificar se estamos em ambiente de desenvolvimento
-    const isDev = process.env.NODE_ENV === 'development';
-    
-    // Em desenvolvimento ou se configurado, retorna dados de exemplo
-    if (isDev || process.env.USE_MOCK_DATA === 'true') {
-      return this.generateMockPortfolioData();
-    }
-    
-    // Em produção sem dados, retorna array vazio
-    return [];
-  }
 
   /**
    * Busca dados de mercado para pares importantes
