@@ -1,10 +1,10 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { PlusCircle, Trash2, ToggleLeft, ToggleRight, Search, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
+import { Input } from '@/app/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
 
 interface TradingPair {
@@ -17,6 +17,8 @@ export default function TradingPairsPage() {
   const [tradingPairs, setTradingPairs] = useState<TradingPair[]>([]);
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
   const [newSymbol, setNewSymbol] = useState('');
+  const [symbolSearch, setSymbolSearch] = useState('');
+  const [filteredSymbols, setFilteredSymbols] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -43,15 +45,30 @@ export default function TradingPairsPage() {
       if (!response.ok) throw new Error('Falha ao buscar símbolos');
       const data = await response.json();
       setAvailableSymbols(data);
+      setFilteredSymbols(data);
     } catch (error) {
       console.error(error);
       toast.error('Não foi possível carregar os símbolos disponíveis');
     }
   };
 
+  // Filtrar símbolos
+  useEffect(() => {
+    if (!symbolSearch) {
+      setFilteredSymbols(availableSymbols);
+      return;
+    }
+
+    const lowercaseSearch = symbolSearch.toLowerCase();
+    const filtered = availableSymbols.filter(symbol => 
+      symbol.toLowerCase().includes(lowercaseSearch)
+    );
+    setFilteredSymbols(filtered);
+  }, [symbolSearch, availableSymbols]);
+
   // Adicionar novo par de trading
-  const addTradingPair = async () => {
-    if (!newSymbol) {
+  const addTradingPair = async (symbol: string) => {
+    if (!symbol) {
       toast.error('Selecione um símbolo');
       return;
     }
@@ -60,7 +77,7 @@ export default function TradingPairsPage() {
       const response = await fetch('/api/trading-pairs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: newSymbol })
+        body: JSON.stringify({ symbol })
       });
 
       if (!response.ok) {
@@ -70,7 +87,7 @@ export default function TradingPairsPage() {
 
       const newPair = await response.json();
       setTradingPairs([...tradingPairs, newPair]);
-      setNewSymbol('');
+      setSymbolSearch('');
       setIsDialogOpen(false);
       toast.success(`Par ${newPair.symbol} adicionado com sucesso`);
     } catch (error) {
@@ -133,37 +150,57 @@ export default function TradingPairsPage() {
         <h1 className="text-2xl font-semibold text-gray-900">Pares de Trading</h1>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button variant="primary">
               <PlusCircle className="mr-2 h-4 w-4" />
               Adicionar Par
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Adicionar Novo Par de Trading</DialogTitle>
+              <DialogTitle className='text-gray-600 mb-2'>Adicionar Novo Par de Trading</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <Select 
-                value={newSymbol} 
-                onValueChange={setNewSymbol}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um símbolo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSymbols.map(symbol => (
-                    <SelectItem key={symbol} value={symbol}>
-                      {symbol}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button 
-                onClick={addTradingPair} 
-                className="w-full"
-              >
-                Adicionar
-              </Button>
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-2">
+                  Selecione um par de trading para adicionar
+                </p>
+              </div>
+              <div className="relative">
+                <Input 
+                  placeholder="Busque por símbolo ou par" 
+                  value={symbolSearch}
+                  onChange={(e) => setSymbolSearch(e.target.value)}
+                  className="pl-10 border-indigo-300 focus:border-indigo-500 focus:ring-indigo-500 text-gray-400 mb-2"
+                />
+                {symbolSearch ? (
+                  <button 
+                    onClick={() => setSymbolSearch('')} 
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                )}
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto border border-indigo-100 rounded">
+                {filteredSymbols.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 bg-gray-50">
+                    Nenhum par encontrado
+                  </div>
+                ) : (
+                  filteredSymbols.map((symbol) => (
+                    <div 
+                      key={symbol} 
+                      onClick={() => addTradingPair(symbol)}
+                      className="px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b border-indigo-100 last:border-b-0 transition-colors duration-200 ease-in-out"
+                    >
+                      <span className="text-gray-800 font-medium">{symbol}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -180,7 +217,7 @@ export default function TradingPairsPage() {
             <p className="text-sm text-gray-400 mb-6 text-center">
               Adicione pares de trading para monitorar suas operações automáticas
             </p>
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button variant="primary" onClick={() => setIsDialogOpen(true)}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Adicionar Primeiro Par
             </Button>
@@ -189,10 +226,17 @@ export default function TradingPairsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tradingPairs.map(pair => (
-            <Card key={pair.id} className="overflow-hidden">
+            <Card key={pair.id} className="overflow-hidden border-l-4 border-l-indigo-500 w-full">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg">{pair.symbol}</CardTitle>
+                  <div className="flex items-center">
+                    <div className="mr-3 p-2 bg-indigo-100 rounded-full">
+                      <PlusCircle className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg truncate max-w-[200px] text-gray-800">{pair.symbol}</CardTitle>
+                    </div>
+                  </div>
                   <div className="flex items-center space-x-2">
                     <button 
                       onClick={() => toggleTradingPairStatus(pair)}

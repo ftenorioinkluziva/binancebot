@@ -819,4 +819,48 @@ static async getUserTradesHistory(apiKeyId: string, userId: string): Promise<any
   }
 }
 
+static async getAllTradingSymbols(apiKeyId: string, userId: string): Promise<string[]> {
+  try {
+    // Recuperar dados da chave API para determinar a base URL
+    const apiKeyData = await ApiKeyService.getApiKey(apiKeyId, userId);
+    
+    const baseUrl = apiKeyData.exchange === 'binance_us' 
+      ? 'https://api.binance.us' 
+      : 'https://api.binance.com';
+    
+    // Endpoint para obter informações de exchange
+    const url = `${baseUrl}/api/v3/exchangeInfo`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Erro ao buscar símbolos: ${response.statusText}`);
+    }
+    
+    const exchangeInfo = await response.json();
+    
+    // Extrair apenas os símbolos que são de trading (geralmente terminam com USDT, BTC, ETH, etc.)
+    const symbols = exchangeInfo.symbols
+      .filter(symbol => 
+        symbol.status === 'TRADING' && 
+        (symbol.symbol.endsWith('USDT') || 
+         symbol.symbol.endsWith('BTC') || 
+         symbol.symbol.endsWith('ETH') ||
+         symbol.symbol.endsWith('BRL') ||  
+         symbol.symbol.endsWith('BNB'))
+      )
+      .map(symbol => symbol.symbol);
+    
+    return symbols;
+  } catch (error) {
+    console.error('Erro ao buscar lista de símbolos:', error);
+    // Fallback para uma lista padrão se a busca falhar
+    return [
+      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT', 
+      'XRPUSDT', 'DOGEUSDT', 'MATICUSDT', 'DOTUSDT', 'LTCUSDT'
+    ];
+  }
+}
+
+
 }

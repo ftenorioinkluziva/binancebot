@@ -17,10 +17,13 @@ model User {
   password      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
+  // Relações
   apiKeys       ApiKey[]
   strategies    Strategy[]
   accounts      Account[]
   sessions      Session[]
+  tradingPairs  TradingPair[]
 }
 
 model Account {
@@ -106,10 +109,4 @@ model TradingPair {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
-}
-
-// No modelo User, adicionar a relação reversa
-model User {
-  // ... outras fields existentes
-  tradingPairs TradingPair[]
 }
