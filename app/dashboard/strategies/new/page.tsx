@@ -89,7 +89,7 @@ export default function NewStrategyPage() {
       name: '',
       symbol: '',
       active: false,
-      amount: 50,
+      amount: 0,
       frequency: 'weekly',
       dayOfWeek: 1,
     } as StrategyFormValues
@@ -266,103 +266,49 @@ export default function NewStrategyPage() {
               <CardTitle>Configuração de Compra Média (DCA)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="amountType">Tipo de Valor</Label>
-                <Controller
-                  name="amountType"
-                  control={control}
-                  defaultValue="fixed"
-                  render={({ field }) => (
-                    <Select 
-                      value={field.value} 
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger id="amountType">
-                        <SelectValue placeholder="Selecione o tipo de valor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fixed">Valor Fixo</SelectItem>
-                        <SelectItem value="percentage">Porcentagem</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="currency">Moeda</Label>
-                <Controller
-                  name="currency"
-                  control={control}
-                  defaultValue="BRL"
-                  render={({ field }) => (
-                    <Select 
-                      value={field.value} 
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger id="currency">
-                        <SelectValue placeholder="Selecione a moeda" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BRL">BRL</SelectItem>
-                        <SelectItem value="USDT">USDT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Valor por Execução (BRL)</Label>
+              <Controller
+                name="amount"
+                control={control}
+                render={({ field }) => (
+                  <Input 
+                    id="amount" 
+                    type="number"
+                    min="1"
+                    step="0.1"
+                    value={field.value}
+                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  />
+                )}
+              />
+              {errors.amount && (
+                <p className="text-sm text-red-500">{errors.amount.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
-              {watchedValues.amountType === 'fixed' ? (
-                <>
-                  <Label htmlFor="amount">Valor por Execução ({watchedValues.currency})</Label>
-                  <Controller
-                    name="amount"
-                    control={control}
-                    render={({ field }) => (
-                      <Input 
-                        id="amount" 
-                        type="number"
-                        min="1"
-                        step="0.1"
-                        value={field.value}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      />
-                    )}
-                  />
-                </>
-              ) : (
-                <>
-                  <Label htmlFor="percentage">Porcentagem do Saldo (%)</Label>
-                  <Controller
-                    name="percentage"
-                    control={control}
-                    defaultValue={10}
-                    render={({ field }) => (
-                      <Input 
-                        id="percentage" 
-                        type="number"
-                        min="1"
-                        max="100"
-                        step="1"
-                        value={field.value}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      />
-                    )}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Será utilizada a porcentagem do saldo disponível em {watchedValues.currency} na sua carteira Spot.
-                  </p>
-                </>
-              )}
-              {errors.amount && watchedValues.amountType === 'fixed' && (
-                <p className="text-sm text-red-500">{errors.amount?.message}</p>
-              )}
-              {errors.percentage && watchedValues.amountType === 'percentage' && (
-                <p className="text-sm text-red-500">{errors.percentage?.message}</p>
-              )}
+              <Label htmlFor="currency">Moeda</Label>
+              <Controller
+                name="currency"
+                control={control}
+                defaultValue="BRL"
+                render={({ field }) => (
+                  <Select 
+                    value={field.value} 
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id="currency">
+                      <SelectValue placeholder="Selecione a moeda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BRL">BRL</SelectItem>
+                      <SelectItem value="USDT">USDT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
                 
             <div className="space-y-2">
@@ -387,7 +333,7 @@ export default function NewStrategyPage() {
                 )}
               />
             </div>
-              </div>
+          
               
               {frequency === 'weekly' && (
                 <div className="space-y-2">
@@ -474,11 +420,7 @@ export default function NewStrategyPage() {
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Resumo da Estratégia</h4>
                 <p className="text-sm text-blue-700">
                   Esta estratégia irá comprar 
-                  {watchedValues.amountType === 'fixed' ? (
-                    <span className="font-medium"> {watchedValues.amount} {watchedValues.currency} </span>
-                  ) : (
-                    <span className="font-medium"> {watchedValues.percentage}% do saldo disponível em {watchedValues.currency} </span>
-                  )}
+                  <span className="font-medium"> {watchedValues.amount || 0} {watchedValues.currency || 'BRL'} </span>
                   de {watchedValues.symbol || '[selecione um par]'} 
                   {watchedValues.frequency === 'daily' && ' todos os dias'}
                   {watchedValues.frequency === 'weekly' && ` toda semana às ${
@@ -498,7 +440,6 @@ export default function NewStrategyPage() {
           </Card>
         )}
 
-    );
     {selectedType === 'BollingerBands' && (
       <Card>
         <CardHeader>
@@ -633,7 +574,7 @@ export default function NewStrategyPage() {
                   para {watchedValues.symbol || '[selecione um par]'}.
                   {watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
                   {watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
-                  {' '}Cada operação utilizará {watchedValues.amount} USDT.
+                  {' '}Cada operação utilizará {watchedValues.amount} {watchedValues.currency}.
                   {watchedValues.trailingStopLoss && ` Um stop loss móvel de ${watchedValues.trailingStopLoss}% será aplicado.`}
                 </p>
               </div>
@@ -770,7 +711,7 @@ export default function NewStrategyPage() {
                   Esta estratégia irá usar cruzamento de Médias Móveis do tipo {watchedValues.maType || 'EMA'} com períodos 
                   de {watchedValues.fastPeriod} (rápida) e {watchedValues.slowPeriod} (lenta) para {watchedValues.symbol || '[selecione um par]'}.
                   Comprará quando a média rápida cruzar para cima da média lenta e venderá quando cruzar para baixo.
-                  Cada operação utilizará {watchedValues.amount} USDT.
+                  Cada operação utilizará {watchedValues.amount} {watchedValues.currency}.
                 </p>
               </div>
             </CardContent>
