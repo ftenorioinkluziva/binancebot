@@ -102,14 +102,14 @@ export default function NewStrategyPage() {
 
   // Função para mudar o tipo de estratégia
   const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
-    // Preservar valores comuns
+    // Preserve values common to all strategy types
     const commonValues = {
       name: watchedValues.name,
       symbol: watchedValues.symbol,
       active: watchedValues.active,
     };
     
-    // Resetar o form com novos valores padrão baseados no tipo
+    // Reset with type-specific defaults
     if (value === 'DCA') {
       reset({
         ...commonValues,
@@ -117,7 +117,7 @@ export default function NewStrategyPage() {
         amount: 50,
         frequency: 'weekly',
         dayOfWeek: 1,
-      } as StrategyFormValues);
+      } as any); // Use type assertion here
     } else if (value === 'BollingerBands') {
       reset({
         ...commonValues,
@@ -169,7 +169,7 @@ export default function NewStrategyPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-gray-900">Nova Estratégia</h1>
       </div>
-      
+     
       <form onSubmit={handleSubmit(onSubmit)}>
         <Card className="mb-6">
           <CardHeader>
@@ -227,6 +227,7 @@ export default function NewStrategyPage() {
                   <Tabs 
                     value={field.value} 
                     onValueChange={(value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
+                      field.onChange(value);
                       handleTypeChange(value);
                     }}
                     className="w-full"
@@ -364,28 +365,28 @@ export default function NewStrategyPage() {
               )}
             </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="frequency">Frequência</Label>
-                  <Controller
-                    name="frequency"
-                    control={control}
-                    render={({ field }) => (
-                      <Select 
-                        value={field.value} 
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger id="frequency">
-                          <SelectValue placeholder="Selecione a frequência" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">Diária</SelectItem>
-                          <SelectItem value="weekly">Semanal</SelectItem>
-                          <SelectItem value="monthly">Mensal</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="frequency">Frequência</Label>
+              <Controller
+                name="frequency"
+                control={control}
+                render={({ field }) => (
+                  <Select 
+                    value={field.value} 
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id="frequency">
+                      <SelectValue placeholder="Selecione a frequência" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Diária</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                      <SelectItem value="monthly">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
               </div>
               
               {frequency === 'weekly' && (
@@ -496,10 +497,11 @@ export default function NewStrategyPage() {
             </CardContent>
           </Card>
         )}
-        
-        {selectedType === 'BollingerBands' && (
-          <Card>
-            <CardHeader>
+
+    );
+    {selectedType === 'BollingerBands' && (
+      <Card>
+        <CardHeader>
               <CardTitle>Configuração de Bandas de Bollinger</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -636,7 +638,7 @@ export default function NewStrategyPage() {
                 </p>
               </div>
             </CardContent>
-          </Card>
+      </Card>
         )}
         
         {selectedType === 'MovingAverage' && (
