@@ -106,8 +106,11 @@ export class DashboardService {
         // 6. Calcular métricas gerais (saldo total, variação 24h, lucro total)
         const totalBalance = portfolio.reduce((sum, asset) => sum + asset.value, 0);
         
-        // Calcular a variação diária baseada nos ativos e suas variações de preço
+        // 7.Calcular a variação diária baseada nos ativos e suas variações de preço
         const dailyChange = this.calculateDailyChange(portfolio, marketData);
+
+        // 8.Atualizar Banco de Dados com os trades realizados
+        
         
         // Buscar lucro total do banco de dados
         const totalProfit = await this.calculateTotalProfit(userId);
@@ -220,7 +223,7 @@ export class DashboardService {
       const trades = recentExecutions.map(execution => ({
         id: execution.id,
         symbol: execution.symbol,
-        side: execution.side,
+        side: execution.side as 'BUY' | 'SELL',
         quantity: execution.quantity,
         price: execution.price,
         total: execution.price * execution.quantity,
@@ -231,6 +234,18 @@ export class DashboardService {
         orderType: execution.order?.type || 'MARKET'
       }));
       
+      // Tente buscar trades da Binance se não encontrar no banco de dados      
+        try {
+          console.log('Tentando buscar trades da API da Binance...');
+          const binanceTrades = await this.fetchRecentTradesFromBinance(userId);
+          
+          if (binanceTrades.length > 0) {
+            console.log(`Encontrados ${binanceTrades.length} trades na API da Binance`);
+            return binanceTrades;
+          }
+        } catch (binanceError) {
+          console.error('Erro ao buscar trades da Binance:', binanceError);
+        }
       return trades;
     } catch (error) {
       console.error('Erro ao buscar operações recentes:', error);
@@ -383,47 +398,51 @@ export class DashboardService {
     }
   }
 
-  /**
-   * Calcula o lucro total baseado nas operações realizadas
-   */
-  private static async calculateTotalProfit(userId: string): Promise<number> {
-    try {
-      // Buscar todas as operações de venda completas
-      const sellTrades = await prisma.trade.findMany({
-        where: {
-          userId,
-          side: 'SELL',
-          status: 'FILLED'
-        },
-        select: {
-          symbol: true,
-          total: true
-        }
-      });
+/**
+ * Calcula o lucro total baseado nas execuções realizadas
+ */
+private static async calculateTotalProfit(userId: string): Promise<number> {
+  try {
+    // Buscar todas as execuções de venda completas
+    const sellExecutions = await prisma.execution.findMany({
+      where: {
+        userId,
+        side: 'SELL'
+      },
+      select: {
+        symbol: true,
+        price: true,
+        quantity: true
+      }
+    });
+    
+    // Buscar todas as execuções de compra
+    const buyExecutions = await prisma.execution.findMany({
+      where: {
+        userId,
+        side: 'BUY'
+      },
+      select: {
+        symbol: true,
+        price: true,
+        quantity: true
+      }
+    });
+    
+    // Calcular lucro total (vendas - compras)
+    // Para cada execução, calculamos o total (preço * quantidade)
+    const totalSells = sellExecutions.reduce((sum, execution) => 
+      sum + (execution.price * execution.quantity), 0);
       
-      // Buscar todas as operações de compra completas
-      const buyTrades = await prisma.trade.findMany({
-        where: {
-          userId,
-          side: 'BUY',
-          status: 'FILLED'
-        },
-        select: {
-          symbol: true,
-          total: true
-        }
-      });
-      
-      // Calcular lucro total (vendas - compras)
-      const totalSells = sellTrades.reduce((sum, trade) => sum + trade.total, 0);
-      const totalBuys = buyTrades.reduce((sum, trade) => sum + trade.total, 0);
-      
-      return totalSells - totalBuys;
-    } catch (error) {
-      console.error('Erro ao calcular lucro total:', error);
-      return 0;
-    }
+    const totalBuys = buyExecutions.reduce((sum, execution) => 
+      sum + (execution.price * execution.quantity), 0);
+    
+    return totalSells - totalBuys;
+  } catch (error) {
+    console.error('Erro ao calcular lucro total:', error);
+    return 0;
   }
+}
 
   private static async fetchRecentTradesFromBinance(userId: string): Promise<TradeOverview[]> {
     try {

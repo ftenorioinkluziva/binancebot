@@ -50,9 +50,6 @@ export function RecentTrades({ trades, isLoading }: RecentTradesProps) {
                   <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Quantidade
                   </th>
-                  <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -66,10 +63,7 @@ export function RecentTrades({ trades, isLoading }: RecentTradesProps) {
                         {trade.symbol}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {trade.orderType} {trade.orderId && `#${trade.orderId.substring(0,8)}`}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {trade.strategy}
+                        {trade.orderType} - {trade.strategy} {/* {trade.orderId && `#${trade.orderId.substring(0,8)}`} */}
                       </div>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
@@ -91,9 +85,6 @@ export function RecentTrades({ trades, isLoading }: RecentTradesProps) {
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                       {trade.quantity.toLocaleString('en-US', { minimumFractionDigits: trade.quantity < 1 ? 6 : 2, maximumFractionDigits: 8 })}
-                    </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      ${trade.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))}
