@@ -185,102 +185,58 @@ export class DashboardService {
     }
   }
 
-static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
-  try {
-    console.log('Buscando operações recentes para usuário:', userId);
-    
-    // 1. Buscar trades do banco de dados
-    const dbTrades = await prisma.trade.findMany({
-      where: {
-        userId
-      },
-      select: {
-        id: true,
-        symbol: true,
-        side: true,
-        quantity: true,
-        price: true,
-        total: true,
-        createdAt: true,
-        status: true,
-        strategy: {
-          select: {
-            name: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 10 // Buscamos mais para poder combinar com os da API
-    });
-    
-    console.log(`Encontrados ${dbTrades.length} trades no banco de dados`);
-    
-    // 2. Buscar trades recentes da API da Binance
-    // Envolver em um try/catch para não interromper o fluxo se a API falhar
-    let apiTrades = [];
+  static async getRecentTrades(userId: string): Promise<TradeOverview[]> {
     try {
-      apiTrades = await this.fetchRecentTradesFromBinance(userId);
-    } catch (apiError) {
-      console.log("Erro ao buscar trades da API da Binance, continuando apenas com trades do banco:", apiError.message);
-    }
-    
-    // 3. Combinar os resultados (removendo duplicatas)
-    let allTrades = [
-      ...dbTrades.map(trade => this.mapDbTradeToTradeOverview(trade)),
-      ...apiTrades
-    ];
-    
-    // 4. Remover duplicatas baseado em orderId
-    const uniqueTrades = this.removeDuplicateTrades(allTrades);
-    
-    console.log(`Total de ${uniqueTrades.length} trades únicos após combinação`);
-    
-    // 5. Ordenar por data (mais recentes primeiro) e limitar a 5
-    const sortedTrades = uniqueTrades
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 5);
-    
-    // 6. Retornar os trades ordenados, mesmo que seja um array vazio
-    return sortedTrades;
-  } catch (error) {
-    console.error('Erro ao buscar operações recentes:', error);
-    
-    // Em caso de erro, tentar retornar apenas os dados do banco
-    try {
-      const fallbackTrades = await prisma.trade.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          symbol: true,
-          side: true,
-          quantity: true,
-          price: true,
-          total: true,
-          createdAt: true,
-          status: true,
-          strategy: {
+      console.log('Buscando operações recentes para usuário:', userId);
+      
+      // Buscar execuções recentes com suas ordens relacionadas
+      const recentExecutions = await prisma.execution.findMany({
+        where: {
+          userId
+        },
+        include: {
+          order: {
             select: {
-              name: true
+              binanceOrderId: true,
+              clientOrderId: true,
+              type: true,
+              strategy: {
+                select: {
+                  name: true
+                }
+              }
             }
           }
-        }
+        },
+        orderBy: {
+          timestamp: 'desc'
+        },
+        take: 10
       });
       
-      if (fallbackTrades.length > 0) {
-        return fallbackTrades.map(trade => this.mapDbTradeToTradeOverview(trade));
-      }
-    } catch (dbError) {
-      console.error('Erro ao buscar trades de fallback do banco:', dbError);
+      console.log(`Encontradas ${recentExecutions.length} execuções no banco de dados`);
+      
+      // Mapear para o formato esperado pela UI
+      const trades = recentExecutions.map(execution => ({
+        id: execution.id,
+        symbol: execution.symbol,
+        side: execution.side,
+        quantity: execution.quantity,
+        price: execution.price,
+        total: execution.price * execution.quantity,
+        timestamp: execution.timestamp?.toISOString() || execution.createdAt.toISOString(),
+        strategy: execution.order?.strategy?.name || 'Manual',
+        status: 'FILLED',
+        orderId: execution.order?.binanceOrderId,
+        orderType: execution.order?.type || 'MARKET'
+      }));
+      
+      return trades;
+    } catch (error) {
+      console.error('Erro ao buscar operações recentes:', error);
+      return [];
     }
-    
-    // Se chegou aqui, todos os métodos falharam, retornar um array vazio
-    return [];
   }
-}
   /**
    * Busca dados de mercado para pares importantes
    */

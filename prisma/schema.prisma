@@ -24,6 +24,8 @@ model User {
   accounts      Account[]
   sessions      Session[]
   tradingPairs  TradingPair[]
+  orders        Order[]
+  executions    Execution[]
 }
 
 model Account {
@@ -79,24 +81,9 @@ model Strategy {
   lastRun     DateTime?
   performance Float?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades      Trade[]
-}
 
-model Trade {
-  id          String   @id @default(cuid())
-  strategyId  String?
-  userId      String
-  symbol      String
-  side        String   // BUY, SELL
-  quantity    Float
-  price       Float
-  total       Float
-  status      String   // PENDING, FILLED, CANCELED, REJECTED
-  orderId     String?
-  orderType   String   // MARKET, LIMIT, etc.
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  strategy    Strategy? @relation(fields: [strategyId], references: [id])
+  // Relações
+  orders          Order[]
 }
 
 model TradingPair {
@@ -109,4 +96,62 @@ model TradingPair {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  userId        String
+  strategyId    String?
+  symbol        String
+  binanceOrderId String     // ID original da ordem na Binance
+  clientOrderId String?
+  side          String      // BUY, SELL
+  type          String      // LIMIT, MARKET, etc.
+  status        String      // NEW, FILLED, CANCELED, etc.
+  price         Float?      // Preço limite (se aplicável)
+  quantity      Float       // Quantidade desejada
+  executedQty   Float?      // Quantidade realmente executada
+  quoteQty      Float?      // Valor total em moeda de cotação
+  timeInForce   String?     // GTC, IOC, FOK
+  stopPrice     Float?
+  timestamp     DateTime?   // Momento da criação na Binance
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // Relacionamentos
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  strategy      Strategy?   @relation(fields: [strategyId], references: [id])
+  executions    Execution[] // Nova relação com execuções
+  
+  // Índices
+  @@index([userId])
+  @@index([symbol])
+  @@index([binanceOrderId])
+  @@unique([userId, binanceOrderId])
+}
+
+model Execution {
+  id              String    @id @default(cuid())
+  orderId         String    // Referência para Order
+  userId          String
+  binanceTradeId  String    // ID do trade na Binance
+  symbol          String
+  side            String    // BUY, SELL
+  price           Float     // Preço da execução
+  quantity        Float     // Quantidade executada
+  commission      Float?    // Taxa paga
+  commissionAsset String?   // Ativo em que a taxa foi paga
+  isMaker         Boolean?  // Se foi executado como maker
+  timestamp       DateTime? // Momento da execução na Binance
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relacionamentos
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order           Order     @relation(fields: [orderId], references: [id])
+  
+  // Índices
+  @@index([userId])
+  @@index([symbol])
+  @@unique([userId, binanceTradeId])
 }

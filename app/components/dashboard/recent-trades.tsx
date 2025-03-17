@@ -66,6 +66,9 @@ export function RecentTrades({ trades, isLoading }: RecentTradesProps) {
                         {trade.symbol}
                       </div>
                       <div className="text-xs text-gray-500">
+                        {trade.orderType} {trade.orderId && `#${trade.orderId.substring(0,8)}`}
+                      </div>
+                      <div className="text-xs text-gray-500">
                         {trade.strategy}
                       </div>
                     </td>

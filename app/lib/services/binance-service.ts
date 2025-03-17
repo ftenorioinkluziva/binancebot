@@ -3,6 +3,7 @@
 //import { EncryptionService } from './encryption-service';
 import { ApiKeyService } from './api-key-service';
 import { DashboardService } from './dashboard-service';
+import { prisma } from '@/app/lib/prisma';
 
 export class BinanceService {
 
@@ -551,11 +552,22 @@ static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
       ? 'https://api.binance.us' 
       : 'https://api.binance.com';
     
-    // Lista de símbolos populares para buscar ordens
-    const popularSymbols = [
-      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT', 
-      'XRPUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT'
-    ];
+    // Buscar pares de trading ativos do usuário
+    const userTradingPairs = await prisma.tradingPair.findMany({
+      where: { 
+        userId,
+        active: true 
+      },
+      select: { symbol: true }
+    });
+
+    // Extrair símbolos dos pares encontrados ou usar a lista de símbolos populares como fallback
+    const symbolsToFetch = userTradingPairs.length > 0 
+      ? userTradingPairs.map(pair => pair.symbol)
+      : [
+          'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT', 
+          'XRPUSDT', 'DOGEUSDT', 'DOTUSDT', 'MATICUSDT'
+        ];
     
     // Buscar todas as ordens dos últimos 7 dias
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
@@ -564,11 +576,11 @@ static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
       limit: 10 // Limitar a 10 ordens por símbolo
     };
     
-    // Array para armazenar todas as ordens encontradas
+    // Array para armazenar ordens
     let allOrders = [];
     
-    // Buscar ordens para cada símbolo popular
-    for (const symbol of popularSymbols) {
+    // Buscar ordens para cada símbolo
+    for (const symbol of symbolsToFetch) {
       try {
         const params = {
           ...baseParams,
@@ -586,75 +598,230 @@ static async getRecentOrders(apiKeyId: string, userId: string): Promise<any[]> {
         );
         
         if (orders && orders.length > 0) {
+          console.log(`Encontradas ${orders.length} ordens para ${symbol}`);
           allOrders = [...allOrders, ...orders];
         }
       } catch (symbolError) {
-        // Ignorar erros para símbolos específicos e continuar com o próximo
         console.log(`Erro ao buscar ordens para ${symbol}:`, symbolError.message);
       }
     }
     
-    // Se não encontrou nenhuma ordem, tentar buscar trades recentes
-    if (allOrders.length === 0) {
-      let allTrades = [];
-      
-      for (const symbol of popularSymbols) {
-        try {
-          const params = {
-            ...baseParams,
-            symbol
-          };
-          
-          // Buscar trades recentes para este símbolo
-          const trades = await this.makeSignedRequest(
-            '/api/v3/myTrades',
-            params,
-            'GET',
-            apiKeyData.apiKey,
-            apiKeyData.apiSecret,
-            baseUrl
-          );
-          
-          if (trades && trades.length > 0) {
-            allTrades = [...allTrades, ...trades];
-          }
-        } catch (symbolError) {
-          // Ignorar erros para símbolos específicos
-          console.log(`Erro ao buscar trades para ${symbol}:`, symbolError.message);
-        }
-      }
-      
-      if (allTrades.length > 0) {
-        return allTrades;
-      }
-    }
-    
-    // Se encontrou alguma ordem, retornar
+    // Salvar as ordens no banco de dados
     if (allOrders.length > 0) {
-      return allOrders;
+      await this.saveOrdersToDatabase(allOrders, userId);
+    } else {
+      console.log('Nenhuma ordem encontrada para os símbolos fornecidos');
     }
     
-    // Se chegou aqui, tentar buscar apenas ordens abertas (endpoint com menos restrições)
-    try {
-      const openOrders = await this.makeSignedRequest(
-        '/api/v3/openOrders',
-        {},
-        'GET',
-        apiKeyData.apiKey,
-        apiKeyData.apiSecret,
-        baseUrl
-      );
-      
-      return openOrders || [];
-    } catch (openOrdersError) {
-      console.error('Erro ao buscar ordens abertas:', openOrdersError);
-      return [];
+    // Agora vamos buscar os trades (execuções) associados
+    let allTrades = [];
+    
+    // Buscar trades para cada símbolo
+    for (const symbol of symbolsToFetch) {
+      try {
+        const params = {
+          ...baseParams,
+          symbol
+        };
+        
+        // Buscar trades para este símbolo
+        const trades = await this.makeSignedRequest(
+          '/api/v3/myTrades',
+          params,
+          'GET',
+          apiKeyData.apiKey,
+          apiKeyData.apiSecret,
+          baseUrl
+        );
+        
+        if (trades && trades.length > 0) {
+          console.log(`Encontrados ${trades.length} trades para ${symbol}`);
+          allTrades = [...allTrades, ...trades];
+        }
+      } catch (symbolError) {
+        console.log(`Erro ao buscar trades para ${symbol}:`, symbolError.message);
+      }
     }
+    
+    // Salvar os trades (execuções) no banco de dados
+    if (allTrades.length > 0) {
+      await this.saveExecutionsToDatabase(allTrades, userId);
+    } else {
+      console.log('Nenhum trade encontrado para os símbolos fornecidos');
+    }
+    
+    // Retornar todas as ordens encontradas
+    return allOrders;
   } catch (error) {
     console.error('Erro ao buscar ordens recentes:', error);
     return [];
   }
 }
+
+/**
+ * Salva as ordens no banco de dados
+ */
+private static async saveOrdersToDatabase(orders: any[], userId: string): Promise<void> {
+  try {
+    console.log(`Processando ${orders.length} ordens para salvar no banco de dados`);
+    
+    // Verificar ordens existentes para evitar duplicatas
+    const existingOrderIds = new Set();
+    
+    const existingOrders = await prisma.order.findMany({
+      where: {
+        userId,
+        binanceOrderId: { in: orders.map(order => order.orderId.toString()) }
+      },
+      select: { binanceOrderId: true }
+    });
+    
+    existingOrders.forEach(order => {
+      existingOrderIds.add(order.binanceOrderId);
+    });
+    
+    console.log(`Encontradas ${existingOrderIds.size} ordens existentes no banco de dados`);
+    
+    // Filtrar apenas ordens novas
+    const newOrders = orders.filter(order => !existingOrderIds.has(order.orderId.toString()));
+    
+    console.log(`Preparando para salvar ${newOrders.length} novas ordens`);
+    
+    // Preparar dados para inserção
+    const ordersToSave = newOrders.map(order => ({
+      userId,
+      binanceOrderId: order.orderId.toString(),
+      clientOrderId: order.clientOrderId,
+      symbol: order.symbol,
+      side: order.side,
+      type: order.type,
+      status: order.status,
+      price: parseFloat(order.price || '0'),
+      quantity: parseFloat(order.origQty || '0'),
+      executedQty: parseFloat(order.executedQty || '0'),
+      quoteQty: parseFloat(order.cummulativeQuoteQty || '0'),
+      timeInForce: order.timeInForce,
+      stopPrice: parseFloat(order.stopPrice || '0'),
+      timestamp: new Date(order.time),
+      updatedAt: new Date()
+    }));
+    
+    // Salvar em lotes de 100 para evitar sobrecarga
+    const batchSize = 100;
+    for (let i = 0; i < ordersToSave.length; i += batchSize) {
+      const batch = ordersToSave.slice(i, i + batchSize);
+      if (batch.length > 0) {
+        await prisma.$transaction(
+          batch.map(orderData => 
+            prisma.order.create({
+              data: orderData
+            })
+          )
+        );
+        console.log(`Salvas ${batch.length} ordens (lote ${Math.floor(i/batchSize) + 1})`);
+      }
+    }
+    
+    console.log(`Total de ${ordersToSave.length} ordens salvas com sucesso`);
+  } catch (error) {
+    console.error('Erro ao salvar ordens no banco de dados:', error);
+  }
+}
+
+/**
+ * Salva as execuções (trades) no banco de dados
+ */
+private static async saveExecutionsToDatabase(trades: any[], userId: string): Promise<void> {
+  try {
+    console.log(`Processando ${trades.length} execuções para salvar no banco de dados`);
+    
+    // Verificar execuções existentes para evitar duplicatas
+    const existingTradeIds = new Set();
+    
+    const existingExecutions = await prisma.execution.findMany({
+      where: {
+        userId,
+        binanceTradeId: { in: trades.map(trade => trade.id.toString()) }
+      },
+      select: { binanceTradeId: true }
+    });
+    
+    existingExecutions.forEach(execution => {
+      existingTradeIds.add(execution.binanceTradeId);
+    });
+    
+    console.log(`Encontradas ${existingTradeIds.size} execuções existentes no banco de dados`);
+    
+    // Filtrar apenas execuções novas
+    const newTrades = trades.filter(trade => !existingTradeIds.has(trade.id.toString()));
+    
+    console.log(`Preparando para salvar ${newTrades.length} novas execuções`);
+    
+    // Buscar ordens relacionadas
+    const orderBinanceIds = [...new Set(newTrades.map(trade => trade.orderId?.toString()).filter(Boolean))];
+    const relatedOrders = await prisma.order.findMany({
+      where: {
+        userId,
+        binanceOrderId: { in: orderBinanceIds }
+      },
+      select: { id: true, binanceOrderId: true }
+    });
+    
+    // Mapear binanceOrderId para id interno do banco
+    const orderIdMap = {};
+    relatedOrders.forEach(order => {
+      orderIdMap[order.binanceOrderId] = order.id;
+    });
+    
+    // Preparar execuções para salvar (apenas aquelas com ordem relacionada)
+    const executionsToSave = [];
+    
+    for (const trade of newTrades) {
+      const binanceOrderId = trade.orderId?.toString();
+      const orderId = orderIdMap[binanceOrderId];
+      
+      if (orderId) {
+        executionsToSave.push({
+          userId,
+          orderId,
+          binanceTradeId: trade.id.toString(),
+          symbol: trade.symbol,
+          side: trade.isBuyer ? 'BUY' : 'SELL',
+          price: parseFloat(trade.price || '0'),
+          quantity: parseFloat(trade.qty || '0'),
+          commission: parseFloat(trade.commission || '0'),
+          commissionAsset: trade.commissionAsset,
+          isMaker: trade.isMaker || false,
+          timestamp: new Date(trade.time),
+          updatedAt: new Date()
+        });
+      } else {
+        console.log(`Ignorando execução ${trade.id} pois não foi encontrada ordem correspondente`);
+      }
+    }
+    
+    // Salvar em lotes para evitar sobrecarga
+    const batchSize = 100;
+    for (let i = 0; i < executionsToSave.length; i += batchSize) {
+      const batch = executionsToSave.slice(i, i + batchSize);
+      if (batch.length > 0) {
+        await prisma.$transaction(
+          batch.map(executionData => 
+            prisma.execution.create({
+              data: executionData
+            })
+          )
+        );
+        console.log(`Salvas ${batch.length} execuções (lote ${Math.floor(i/batchSize) + 1})`);
+      }
+    }
+    
+    console.log(`Total de ${executionsToSave.length} execuções salvas com sucesso`);
+  } catch (error) {
+    console.error('Erro ao salvar execuções no banco de dados:', error);
+  }
+}
+
 /**
  * Busca preços atuais para todos os pares
  * @param apiKeyId ID da chave API
