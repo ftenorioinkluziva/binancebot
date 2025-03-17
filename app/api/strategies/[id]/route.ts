@@ -3,6 +3,32 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/app/lib/prisma';
+import { Prisma } from '@prisma/client';
+
+interface StrategyConfig {
+  amount?: number;
+  frequency?: string;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  hour?: number;
+  period?: number;
+  deviation?: number;
+  buyLowerBand?: boolean;
+  sellUpperBand?: boolean;
+  trailingStopLoss?: number;
+  fastPeriod?: number;
+  slowPeriod?: number;
+  signalPeriod?: number;
+  maType?: string;
+}
+
+interface StrategyData {
+  name: string;
+  symbol: string;
+  type: string;
+  active?: boolean;
+  config: StrategyConfig;
+}
 
 // Função auxiliar para verificar propriedade da estratégia
 async function isStrategyOwner(strategyId: string, userId: string) {
@@ -19,7 +45,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const strategyId = params.id;
+    const { id: strategyId } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user) {
@@ -60,7 +86,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const strategyId = params.id;
+    const { id: strategyId } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user) {
@@ -85,7 +111,7 @@ export async function PUT(
     }
     
     // Estruturar os dados para atualizar
-    const strategyData: any = {
+    const strategyData: StrategyData  = {
       name: data.name,
       symbol: data.symbol,
       type: data.type,
@@ -140,7 +166,7 @@ export async function PUT(
         name: strategyData.name,
         symbol: strategyData.symbol,
         active: strategyData.active,
-        config: strategyData.config,
+        config: strategyData.config as Prisma.InputJsonValue,
         updatedAt: new Date()
       }
     });
@@ -160,7 +186,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const strategyId = params.id;
+    // Await the params object before accessing its properties
+    const { id: strategyId } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session || !session.user) {
