@@ -27,6 +27,9 @@ const baseStrategySchema = z.object({
 const dcaSchema = baseStrategySchema.extend({
   type: z.literal('DCA'),
   amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+  currency: z.enum(['USDT', 'BRL']).default('BRL'),
+  amountType: z.enum(['fixed', 'percentage']).default('fixed'),
+  percentage: z.number().min(1).max(100).optional(),
   frequency: z.enum(['daily', 'weekly', 'monthly']),
   dayOfWeek: z.number().optional(),
   dayOfMonth: z.number().optional(),

@@ -72,6 +72,9 @@ export async function POST(req: Request) {
       case 'DCA':
         strategyData.config = {
           amount: data.amount,
+          currency: data.currency || 'BRL',
+          amountType: data.amountType || 'fixed',
+          percentage: data.percentage,
           frequency: data.frequency,
           dayOfWeek: data.dayOfWeek,
           dayOfMonth: data.dayOfMonth,
