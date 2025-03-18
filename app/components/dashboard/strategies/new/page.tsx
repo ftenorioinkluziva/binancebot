@@ -33,34 +33,36 @@ const strategySchema = z.discriminatedUnion('type', [
     hour: z.number().min(0).max(23).optional(),
   }),
   
-  // Bollinger Bands Schema
-  z.object({
-    type: z.literal('BollingerBands'),
-    name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
-    symbol: z.string().min(1, 'Selecione um par de trading'),
-    active: z.boolean().default(false),
-    period: z.number().min(5).max(100),
-    deviation: z.number().min(1).max(5),
-    amount: z.number().min(1, 'Valor precisa ser maior que 0'),
-    currency: z.enum(['BRL', 'USDT']).default('USDT'),
-    buyLowerBand: z.boolean(),
-    sellUpperBand: z.boolean(),
-    trailingStopLoss: z.number().optional(),
-  }),
-  
-  // Moving Average Schema
-  z.object({
-    type: z.literal('MovingAverage'),
-    name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
-    symbol: z.string().min(1, 'Selecione um par de trading'),
-    active: z.boolean().default(false),
-    fastPeriod: z.number().min(5).max(50),
-    slowPeriod: z.number().min(10).max(200),
-    signalPeriod: z.number().min(5).max(50),
-    amount: z.number().min(1, 'Valor precisa ser maior que 0'),
-    currency: z.enum(['BRL', 'USDT']).default('USDT'),
-    maType: z.enum(['SMA', 'EMA', 'WMA']),
-  }),
+// Bollinger Bands Schema
+z.object({
+  type: z.literal('BollingerBands'),
+  name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
+  symbol: z.string().min(1, 'Selecione um par de trading'),
+  active: z.boolean().default(false),
+  period: z.number().min(5).max(100),
+  deviation: z.number().min(1).max(5),
+  amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+  currency: z.enum(['BRL', 'USDT']).default('USDT'),
+  buyLowerBand: z.boolean(),
+  sellUpperBand: z.boolean(),
+  timeframe: z.enum(['1d', '1w', '1M']).default('1d'), // Adicione esta linha
+  trailingStopLoss: z.number().optional(),
+}),
+
+// Moving Average Schema
+z.object({
+  type: z.literal('MovingAverage'),
+  name: z.string().min(3, 'Nome precisa ter pelo menos 3 caracteres'),
+  symbol: z.string().min(1, 'Selecione um par de trading'),
+  active: z.boolean().default(false),
+  fastPeriod: z.number().min(5).max(50),
+  slowPeriod: z.number().min(10).max(200),
+  signalPeriod: z.number().min(5).max(50),
+  amount: z.number().min(1, 'Valor precisa ser maior que 0'),
+  currency: z.enum(['BRL', 'USDT']).default('USDT'),
+  maType: z.enum(['SMA', 'EMA', 'WMA']),
+  timeframe: z.enum(['1d', '1w', '1M']).default('1d'), // Adicione esta linha
+}),
 ]);
 
 type StrategyFormValues = z.infer<typeof strategySchema>;
@@ -138,9 +140,12 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
       amount: 100,
       currency: 'USDT',
       buyLowerBand: true,
-      sellUpperBand: true,
+      sellUpperBand: false, // Como você mencionou que quer apenas compras, removemos o sell
+      timeframe: '1d', // Adicione esta linha
     } as StrategyFormValues);
-  } else if (value === 'MovingAverage') {
+  } 
+  // Moving Average
+  else if (value === 'MovingAverage') {
     reset({
       ...commonValues,
       type: 'MovingAverage',
@@ -150,6 +155,7 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
       amount: 75,
       currency: 'USDT',
       maType: 'EMA',
+      timeframe: '1d', // Adicione esta linha
     } as StrategyFormValues);
   }
 };
@@ -613,51 +619,36 @@ const onSubmit = async (data: StrategyFormValues) => {
                   Comprar na banda inferior
                 </Label>
               </div>
-              
-              <div className="flex items-center space-x-2">
+              <div className="space-y-2">
+                <Label htmlFor="bbTimeframe" className="text-sm font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-2 text-indigo-500" />
+                  Timeframe de Análise
+                </Label>
                 <Controller
-                  name="sellUpperBand"
+                  name="timeframe"
                   control={control}
+                  defaultValue="1d"
                   render={({ field }) => (
-                    <Switch 
-                      id="sellUpperBand" 
-                      checked={field.value} 
-                      onCheckedChange={field.onChange}
-                      className="data-[state=checked]:bg-indigo-600"
-                    />
+                    <Select 
+                      value={field.value} 
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger id="bbTimeframe" className="border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <SelectValue placeholder="Selecione o timeframe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1d">Diário (1d)</SelectItem>
+                        <SelectItem value="1w">Semanal (1w)</SelectItem>
+                        <SelectItem value="1M">Mensal (1M)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
                 />
-                <Label htmlFor="sellUpperBand" className="cursor-pointer flex items-center">
-                  <TrendingUp className="h-4 w-4 mr-2 text-red-500" />
-                  Vender na banda superior
-                </Label>
-              </div>
+                <p className="text-xs text-gray-500">Período de tempo para análise dos sinais</p>
+              </div>             
+
             </div>
 
-            <div className="space-y-2 mt-4">
-              <Label htmlFor="trailingStopLoss" className="text-sm font-medium flex items-center">
-                <AlertOctagon className="h-4 w-4 mr-2 text-indigo-500" />
-                Stop Loss Móvel (%)
-              </Label>
-              <Controller
-                name="trailingStopLoss"
-                control={control}
-                render={({ field }) => (
-                  <Input 
-                    id="trailingStopLoss" 
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.1"
-                    value={field.value || ''}
-                    onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                    placeholder="Opcional"
-                    className="transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                )}
-              />
-              <p className="text-xs text-gray-500">Porcentagem para stop loss móvel (deixe em branco para desativar)</p>
-            </div>
 
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-md border border-blue-100 mt-8">
               <h4 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center">
@@ -775,7 +766,7 @@ const onSubmit = async (data: StrategyFormValues) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="signalPeriod" className="text-sm font-medium flex items-center">
                   <Signal className="h-4 w-4 mr-2 text-indigo-500" />
@@ -830,8 +821,35 @@ const onSubmit = async (data: StrategyFormValues) => {
                   <p className="text-sm text-red-500">{errors.maType?.message}</p>
                 )}
               </div>
-            </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="maTimeframe" className="text-sm font-medium flex items-center">
+                  <Clock className="h-4 w-4 mr-2 text-indigo-500" />
+                  Timeframe de Análise
+                </Label>
+                <Controller
+                  name="timeframe"
+                  control={control}
+                  defaultValue="1d"
+                  render={({ field }) => (
+                    <Select 
+                      value={field.value} 
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger id="maTimeframe" className="border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <SelectValue placeholder="Selecione o timeframe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1d">Diário (1d)</SelectItem>
+                        <SelectItem value="1w">Semanal (1w)</SelectItem>
+                        <SelectItem value="1M">Mensal (1M)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <p className="text-xs text-gray-500">Período de tempo para análise dos sinais</p>
+              </div>              
+            </div>
             <div className="space-y-2 mt-4">
               <Label htmlFor="currency" className="text-sm font-medium flex items-center">
                 <CreditCard className="h-4 w-4 mr-2 text-indigo-500" />
@@ -880,7 +898,7 @@ const onSubmit = async (data: StrategyFormValues) => {
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.symbol || '[selecione um par]'}
                 </span>.
-                Comprará quando a média rápida cruzar para cima da média lenta e venderá quando cruzar para baixo.
+                Comprará quando a média rápida cruzar para cima da média lenta.
                 Cada operação utilizará 
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.amount || 75} {watchedValues.currency || 'USDT'}
