@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Activity, AlertOctagon, ArrowLeft, BarChart2, Calendar, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, Hourglass, Info, LineChart, Save, Signal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, AlertOctagon, ArrowLeft, BarChart2, Calendar, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, Hourglass, Info, LineChart, Save, Signal, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/app/components/ui/button';  
@@ -134,7 +134,9 @@ export default function NewStrategyPage() {
   
   // Para DCA, nos precisamos acessar o frequency
   const watchedValues = watch();
-  const frequency = selectedType === 'DCA' ? (watchedValues as DCAStrategy).frequency : undefined;
+  const frequency = selectedType === 'DCA' && 'frequency' in watchedValues ? 
+  watchedValues.frequency : 
+  undefined;
 
   const onSubmit = async (data: StrategyFormValues) => {
     setIsSubmitting(true);
@@ -205,12 +207,12 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
+      <Link href="/dashboard/strategies">
         <Button variant="ghost" size="sm" className="mr-4">
-          <Link href="/dashboard/strategies">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Link>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
         </Button>
+      </Link>
         <h1 className="text-2xl font-semibold text-gray-900">Nova Estratégia</h1>
       </div>
       
@@ -704,8 +706,8 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.symbol || '[selecione um par]'}
                 </span>.
-                {watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
-                {watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
+                {selectedType === 'BollingerBands' && watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
+                {selectedType === 'BollingerBands' && watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
                 {' '}Cada operação utilizará 
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.amount || 100} {watchedValues.currency || 'USDT'}

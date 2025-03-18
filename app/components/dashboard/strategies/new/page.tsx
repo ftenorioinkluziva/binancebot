@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger} from '@/app/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Switch } from '@/app/components/ui/switch';
 import { Label } from '@/app/components/ui/label';
+import { StrategyService } from '@/app/lib/services/strategy-service';
 
 // Atualizar o schema para incluir campo de moeda em todas as estratégias
 const strategySchema = z.discriminatedUnion('type', [
@@ -153,21 +154,21 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
   }
 };
 
-  const onSubmit = async (data: Strategy) => {
+const onSubmit = async (data: StrategyFormValues) => {
     setIsSubmitting(true);
     
     try {
       // Aqui você faria a chamada à API para salvar a estratégia
       console.log('Estratégia a ser salva:', data);
       
-      // Simular uma chamada de API
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await StrategyService.createStrategy(data);
+      toast.success('Estratégia criada com sucesso!');
       
       // Redirecionar para a lista de estratégias
       router.push('/dashboard/strategies');
     } catch (error) {
       console.error('Erro ao salvar estratégia:', error);
-      alert('Ocorreu um erro ao salvar a estratégia. Tente novamente.');
+      toast.error('Ocorreu um erro ao salvar a estratégia. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -176,12 +177,12 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
   return (
     <div className="space-y-6">
       <div className="flex items-center">
-        <Button variant="ghost" size="sm" asChild className="mr-4">
-          <Link href="/dashboard/strategies">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar
-          </Link>
+      <Link href="/dashboard/strategies">
+        <Button variant="ghost" size="sm" className="mr-4">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
         </Button>
+      </Link>
         <h1 className="text-2xl font-semibold text-gray-900">Nova Estratégia</h1>
       </div>
       
@@ -244,7 +245,7 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
                     onValueChange={(value: 'DCA' | 'BollingerBands' | 'MovingAverage') => {
                       field.onChange(value);
                       setSelectedType(value);
-                      handleTypeChange(value);  // Adicionar esta linha
+                      handleTypeChange(value);  
                     }}
                     className="w-full"
                   >
@@ -676,8 +677,8 @@ const handleTypeChange = (value: 'DCA' | 'BollingerBands' | 'MovingAverage') => 
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.symbol || '[selecione um par]'}
                 </span>.
-                {watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
-                {watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
+                {selectedType === 'BollingerBands' && watchedValues.buyLowerBand && ' Comprará quando o preço tocar a banda inferior.'}
+                {selectedType === 'BollingerBands' && watchedValues.sellUpperBand && ' Venderá quando o preço tocar a banda superior.'}
                 {' '}Cada operação utilizará 
                 <span className="font-medium bg-white px-2 py-0.5 rounded border border-blue-200 mx-1">
                   {watchedValues.amount || 100} {watchedValues.currency || 'USDT'}
